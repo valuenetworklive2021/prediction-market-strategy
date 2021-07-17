@@ -6,6 +6,7 @@ import "./Checkpoint.sol";
 contract Strategy is Checkpoint {
     IPredictionMarket public predictionMarket;
     address public trader;
+    uint256 public traderFund;
     string public strategyName;
 
     enum StrategyStatus {
@@ -20,20 +21,26 @@ contract Strategy is Checkpoint {
     }
 
     mapping(address => User) public userInfo;
+
+    uint256 latestCheckpointId;
+
     StrategyStatus public status;
 
     //to get list of users
     address[] public users;
+    uint256[] public userAmounts;
 
     modifier isStrategyActive() {
         require(
             status == StrategyStatus.ACTIVE,
             "Strategy::isStrategyActive: STRATEGY_INACTIVE"
         );
+        _;
     }
 
     modifier onlyTrader() {
         require(msg.sender == trader, "Strategy::onlyTrader: INVALID_SENDER");
+        _;
     }
 
     constructor(
@@ -47,7 +54,7 @@ contract Strategy is Checkpoint {
         );
         require(
             _predictionMarket != address(0),
-            "Strategy::constructor:INVALID PRDICTION MARKET ADDRESS."
+            "Strategy::constructor:INVALID PREDICTION MARKET ADDRESS."
         );
         predictionMarket = IPredictionMarket(_predictionMarket);
         strategyName = _name;
@@ -61,8 +68,8 @@ contract Strategy is Checkpoint {
 
         require(msg.value > 0, "Strategy::addUserFund: ZERO_FUNDS");
         require(user.amount == 0, "Strategy::addUserFund: ALREADY_FOLLOWING");
-
-        uint256 checkpoint = addCheckpoint();
+        uint256[] memory markets;
+        uint256 checkpoint = addCheckpoint(latestCheckpointId, userAmounts, users, 0,0,0,0, markets);
 
         user.amount = msg.value;
         user.entryCheckpointId = checkpoint;
@@ -77,21 +84,23 @@ contract Strategy is Checkpoint {
         User storage user = userInfo[msg.sender];
 
         require(
-            amount > 0 && amount <= user.amount,
+            _amount > 0 && _amount <= user.amount,
             "Strategy::removeUserFund:INVALID AMOUNT."
         );
 
         //check if can claim
         //update checkpoint
         uint256 checkpoint;
-        user.amount -= amount;
+        user.amount -= _amount;
         user.exitCheckpointId = checkpoint;
 
         //apply checks
-        (msg.sender).transfer(amount);
+        (msg.sender).transfer(_amount);
 
         //event
     }
+
+    
 
     function addTraderFund() public payable onlyTrader {
         require(msg.value > 0, "Strategy::addTraderFund: ZERO_FUNDS");
@@ -100,7 +109,7 @@ contract Strategy is Checkpoint {
 
     function removeTraderFund(uint256 _amount) public onlyTrader {
         require(
-            amount > 0 && amount <= traderBalance,
+            _amount > 0 && _amount <= traderFund,
             "Strategy::removeUserFund:INVALID AMOUNT."
         );
 
@@ -108,8 +117,8 @@ contract Strategy is Checkpoint {
             status = StrategyStatus.INACTIVE;
         }
 
-        traderFund -= amount;
-        (msg.sender).transfer(amount);
+        traderFund -= _amount;
+        (msg.sender).transfer(_amount);
     }
 
     //only if a user or checkpoint exists

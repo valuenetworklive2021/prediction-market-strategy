@@ -25,8 +25,7 @@ interface IBetToken {
     /**
      * Functions of Pausable
      */
-    function paused() external view returns (bool);
-    
+    function paused() external view returns (bool);    
     /**
      * Functions of ERC20
      */
