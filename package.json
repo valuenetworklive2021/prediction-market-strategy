@@ -1,0 +1,27 @@
+{
+  "name": "Strategy Contracts",
+  "version": "1.0.0",
+  "description": "A smart contract which can be used by trader to invest users funds to various markets in order to generate profit through their unique trading techniques",
+  "main": "index.js",
+  "scripts": {
+    "test": "npx hardhat test",
+    "compile": "npx hardhat compile"
+  },
+  "keywords": [
+    "prediction-markets",
+    "strategy"
+  ],
+  "author": "Value Network",
+  "license": "ISC",
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "chai": "^4.3.4",
+    "ethereum-waffle": "^3.4.0",
+    "ethers": "^5.4.1",
+    "hardhat": "^2.4.3"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^3.1.0-solc-0.7"
+  }
+}
