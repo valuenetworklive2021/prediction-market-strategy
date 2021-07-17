@@ -28,11 +28,7 @@ contract StrategyFactory {
         traderId = traderId + 1;
         traderStrategies[msg.sender].push(traderId);
 
-        Strategy strategy = new Strategy(
-            _predictionMarket,
-            _name,
-            msg.sender
-        );
+        Strategy strategy = new Strategy(_predictionMarket, _name, msg.sender);
         strategy.addTraderFund{value: msg.value}();
 
         emit CreateStrategy(_name, traderId, msg.value);
