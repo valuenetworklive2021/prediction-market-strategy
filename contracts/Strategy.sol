@@ -4,15 +4,19 @@ import "./interfaces/IPredictionMarket.sol";
 
 contract Strategy {
     IPredictionMarket public predictionMarket;
+    string public traderName;
+    address public traderAddress;
 
     constructor(
         address _predictionMarket,
         string memory _name,
         address _trader
     ) {
-        //check zero addresses
+        require(_trader != address(0),"Strategy::constructor:INVALID TRADER ADDRESS.");
+        require(_predictionMarket != address(0),"Strategy::constructor:INVALID PRDICTION MARKET ADDRESS.");
         predictionMarket = IPredictionMarket(_predictionMarket);
-        //initialise above vars
+        traderName = _name;
+        traderAddress = _trader;
     }
 
     function addUserFund() public payable {

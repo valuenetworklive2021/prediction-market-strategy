@@ -8,10 +8,11 @@ contract StrategyFactory {
 
     mapping(address => uint256[]) public traderStrategies;
 
-    //event CreateStrategy (trader, id, amount)
+    event CreateStrategy (string trader, uint256 id, uint256 amount);
 
     constructor(address _predictionMarket) {
         //check zero address
+        require(_predictionMarket != address(0),"StrategyFactory::constructor:INVALID PRDICTION MARKET ADDRESS.");
         predictionMarket = IPredictionMarket(_predictionMarket);
     }
 
@@ -22,7 +23,7 @@ contract StrategyFactory {
     {
         require(
             msg.value > 0,
-            "StrategyRegistry::createStrategy: ZERO_DEPOSIT_FUND"
+            "StrategyFactory::createStrategy: ZERO_DEPOSIT_FUND"
         );
 
         traderId = traderId + 1;
@@ -35,7 +36,7 @@ contract StrategyFactory {
         );
         strategy.addTraderFund{value: msg.value}();
 
-        //emit event
+        emit CreateStrategy(_name, traderId, msg.value);
 
         return traderId;
     }
