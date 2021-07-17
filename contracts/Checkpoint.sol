@@ -38,5 +38,16 @@ contract Checkpoint {
         return _latestCheckpointId;
     }
 
-
+    function updateCheckpoint(
+        uint256 _checkpointId,
+        uint256 _totalInvestedChange,
+        uint256 _totalProfitChange,
+        uint256 _totalLossChange,
+        uint256 marketToAdd) internal returns (uint256) {
+            Checkpoint storage existingCheckpoint = Checkpoints[_checkpointId];
+            existingCheckpoint.totalInvested += _totalInvestedChange;
+            existingCheckpoint.totalProfit += _totalProfitChange;
+            existingCheckpoint.totalLoss += _totalLossChange;
+            existingCheckpoint.markets.push(marketToAdd);
+        }
 }
