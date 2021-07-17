@@ -11,7 +11,6 @@ contract StrategyFactory {
     event CreateStrategy (string trader, uint256 id, uint256 amount);
 
     constructor(address _predictionMarket) {
-        //check zero address
         require(_predictionMarket != address(0),"StrategyFactory::constructor:INVALID PRDICTION MARKET ADDRESS.");
         predictionMarket = IPredictionMarket(_predictionMarket);
     }
