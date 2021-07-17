@@ -1,9 +1,40 @@
 pragma solidity 0.8.0;
 
 import "./interfaces/IPredictionMarket.sol";
+import "./Checkpoint.sol";
 
-contract Strategy {
+contract Strategy is Checkpoint {
     IPredictionMarket public predictionMarket;
+    address public trader;
+    string public strategyName;
+
+    enum StrategyStatus {
+        ACTIVE,
+        INACTIVE
+    }
+
+    struct User {
+        uint256 amount;
+        uint256 entryCheckpointId;
+        uint256 exitCheckpointId;
+    }
+
+    mapping(address => User) public userInfo;
+    StrategyStatus public status;
+
+    //to get list of users
+    address[] public users;
+
+    modifier isStrategyActive() {
+        require(
+            status == StrategyStatus.ACTIVE,
+            "Strategy::isStrategyActive: STRATEGY_INACTIVE"
+        );
+    }
+
+    modifier onlyTrader() {
+        require(msg.sender == trader, "Strategy::onlyTrader: INVALID_SENDER");
+    }
 
     constructor(
         address _predictionMarket,
@@ -11,55 +42,76 @@ contract Strategy {
         address _trader
     ) {
         //check zero addresses
+
         predictionMarket = IPredictionMarket(_predictionMarket);
-        //initialise above vars
+        strategyName = _name;
+        trader = _trader;
+
+        status = StrategyStatus.ACTIVE;
     }
 
-    function addUserFund() public payable {
-        require(msg.value > 0, "Strategy::addUserFund:SEND SOME FUNDS.");
+    function follow() public payable isStrategyActive {
         User storage user = userInfo[msg.sender];
-        user.userFund += msg.value;
-        user.userBalance += msg.value;
-        userVolume += msg.value;
+
+        require(msg.value > 0, "Strategy::addUserFund: ZERO_FUNDS");
+        require(user.amount == 0, "Strategy::addUserFund: ALREADY_FOLLOWING");
+
+        uint256 checkpoint = addCheckpoint();
+
+        user.amount = msg.value;
+        user.entryCheckpointId = checkpoint;
+
         users.push(msg.sender);
+
+        //event
     }
 
-    function addTraderFund() public payable {
-        require(msg.value > 0, "Strategy::addTraderFund:SEND SOME FUNDS.");
-        traderFund += msg.value;
-        traderBalance += msg.value;
-    }
-
-    function removeUserFund(uint256 _amount) public {
+    //unfollow is subjected to fund availability
+    function unfollow(uint256 _amount) public {
         User storage user = userInfo[msg.sender];
 
         require(
-            amount > 0 && amount <= user.userBalance,
+            amount > 0 && amount <= user.amount,
             "Strategy::removeUserFund:INVALID AMOUNT."
         );
-        user.userFund -= amount;
-        user.userBalance -= amount;
-        userVolume -= amount;
 
+        //check if can claim
+        //update checkpoint
+        uint256 checkpoint;
+        user.amount -= amount;
+        user.exitCheckpointId = checkpoint;
+
+        //apply checks
         (msg.sender).transfer(amount);
+
+        //event
     }
 
-    function removeTraderFund(uint256 _amount) public {
+    function addTraderFund() public payable onlyTrader {
+        require(msg.value > 0, "Strategy::addTraderFund: ZERO_FUNDS");
+        traderFund += msg.value;
+    }
+
+    function removeTraderFund(uint256 _amount) public onlyTrader {
         require(
             amount > 0 && amount <= traderBalance,
             "Strategy::removeUserFund:INVALID AMOUNT."
         );
-        traderFund -= amount;
-        traderBalance -= amount;
 
+        if (_amount == traderFund) {
+            status = StrategyStatus.INACTIVE;
+        }
+
+        traderFund -= amount;
         (msg.sender).transfer(amount);
     }
 
+    //only if a user or checkpoint exists
     function placeBet(
         uint256 _conditionIndex,
         uint8 _side,
         uint256 _amount
-    ) public {}
+    ) public isStrategyActive onlyTrader {}
 
     function getConditionDetails(uint256 _conditionIndex)
         public
