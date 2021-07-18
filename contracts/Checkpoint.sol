@@ -13,7 +13,6 @@ contract Checkpoint {
 
     mapping(uint256 => Checkpoint) public Checkpoints;
 
-    
     function addCheckpoint(
         uint256 _latestCheckpointId,
         uint256[] memory _userAmounts,
@@ -22,9 +21,8 @@ contract Checkpoint {
         uint256 _totalInvested,
         uint256 _totalProfit,
         uint256 _totalLoss,
-        uint256[] memory _markets) 
-        internal 
-        returns ( uint256 checkpointId) {
+        uint256[] memory _markets
+    ) internal returns (uint256 checkpointId) {
         Checkpoint storage newCheckpoint = Checkpoints[_latestCheckpointId++];
         newCheckpoint.users = _users;
         newCheckpoint.totalVolume = _totalVolume;
@@ -32,7 +30,7 @@ contract Checkpoint {
         newCheckpoint.totalProfit = _totalProfit;
         newCheckpoint.totalLoss = _totalLoss;
         newCheckpoint.markets = _markets;
-        for (uint256 i= 0; i< _users.length; i++){
+        for (uint256 i = 0; i < _users.length; i++) {
             newCheckpoint.userAmounts[_users[i]] = _userAmounts[i];
         }
         return _latestCheckpointId;
@@ -43,11 +41,12 @@ contract Checkpoint {
         uint256 _totalInvestedChange,
         uint256 _totalProfitChange,
         uint256 _totalLossChange,
-        uint256 marketToAdd) internal returns (uint256) {
-            Checkpoint storage existingCheckpoint = Checkpoints[_checkpointId];
-            existingCheckpoint.totalInvested += _totalInvestedChange;
-            existingCheckpoint.totalProfit += _totalProfitChange;
-            existingCheckpoint.totalLoss += _totalLossChange;
-            existingCheckpoint.markets.push(marketToAdd);
-        }
+        uint256 marketToAdd
+    ) internal returns (uint256) {
+        Checkpoint storage existingCheckpoint = Checkpoints[_checkpointId];
+        existingCheckpoint.totalInvested += _totalInvestedChange;
+        existingCheckpoint.totalProfit += _totalProfitChange;
+        existingCheckpoint.totalLoss += _totalLossChange;
+        existingCheckpoint.markets.push(marketToAdd);
+    }
 }
