@@ -1,34 +1,20 @@
 pragma solidity 0.8.0;
 
 import "./interfaces/IPredictionMarket.sol";
+import "./interfaces/IBetToken.sol";
 import "./Checkpoint.sol";
 
 contract Strategy is Checkpoint {
-    IPredictionMarket public predictionMarket;
-    address public trader;
-    uint256 public traderFund;
-    string public strategyName;
-
-    enum StrategyStatus {
-        ACTIVE,
-        INACTIVE
-    }
-
     struct User {
-        uint256 amount;
+        uint256 depositAmount;
         uint256 entryCheckpointId;
         uint256 exitCheckpointId;
+        uint256 totalProfit;
+        uint256 totalLoss;
+        bool exited;
+        uint256 remainingClaim;
+        //totalClaimed = amount + profit - loss
     }
-
-    mapping(address => User) public userInfo;
-
-    uint256 latestCheckpointId;
-
-    StrategyStatus public status;
-
-    //to get list of users
-    address[] public users;
-    uint256[] public userAmounts;
 
     modifier isStrategyActive() {
         require(
@@ -40,6 +26,14 @@ contract Strategy is Checkpoint {
 
     modifier onlyTrader() {
         require(msg.sender == trader, "Strategy::onlyTrader: INVALID_SENDER");
+        _;
+    }
+
+    modifier onlyUser() {
+        require(
+            userInfo[msg.sender].depositAmount > 0,
+            "Strategy::onlyTrader: INVALID_USER"
+        );
         _;
     }
 
@@ -68,27 +62,23 @@ contract Strategy is Checkpoint {
 
         require(msg.value > 0, "Strategy::addUserFund: ZERO_FUNDS");
         require(user.amount == 0, "Strategy::addUserFund: ALREADY_FOLLOWING");
-        uint256[] memory markets;
-        uint256 checkpoint = addCheckpoint(latestCheckpointId, userAmounts, users, 0,0,0,0, markets);
+
+        totalUserFunds += msg.value;
 
         user.amount = msg.value;
-        user.entryCheckpointId = checkpoint;
-
         users.push(msg.sender);
+
+        //get total volume (trader + all users)
+        uint256 checkpoint = addCheckpoint(users, totalVolume);
+        user.entryCheckpointId = checkpoint;
 
         //event
     }
 
     //unfollow is subjected to fund availability
-    function unfollow(uint256 _amount) public {
+    function unfollow() public onlyUser {
         User storage user = userInfo[msg.sender];
 
-        require(
-            _amount > 0 && _amount <= user.amount,
-            "Strategy::removeUserFund:INVALID AMOUNT."
-        );
-
-        //check if can claim
         //update checkpoint
         uint256 checkpoint;
         user.amount -= _amount;
@@ -100,33 +90,45 @@ contract Strategy is Checkpoint {
         //event
     }
 
-    
-
-    function addTraderFund() public payable onlyTrader {
+    //to be shifted to constructor and removed
+    function addTraderFund() public payable onlyTrader isStrategyActive {
         require(msg.value > 0, "Strategy::addTraderFund: ZERO_FUNDS");
         traderFund += msg.value;
     }
 
-    function removeTraderFund(uint256 _amount) public onlyTrader {
-        require(
-            _amount > 0 && _amount <= traderFund,
-            "Strategy::removeUserFund:INVALID AMOUNT."
-        );
-
-        if (_amount == traderFund) {
-            status = StrategyStatus.INACTIVE;
-        }
-
-        traderFund -= _amount;
-        (msg.sender).transfer(_amount);
+    function removeTraderFund() public onlyTrader {
+        if (status == StrategyStatus.ACTIVE) status = StrategyStatus.INACTIVE;
+        uint256 amount = getClaimAmount();
+        traderFund -= amount;
+        (msg.sender).transfer(amount);
     }
 
     //only if a user or checkpoint exists
-    function placeBet(
+    function bet(
         uint256 _conditionIndex,
         uint8 _side,
         uint256 _amount
-    ) public isStrategyActive onlyTrader {}
+    ) public isStrategyActive onlyTrader {
+        //require _amount <= 5% of total trader fund
+        //calculate fund
+    }
+
+    function claim(uint256 _conditionIndex) public isStrategyActive onlyTrader {
+        address lowBetToken;
+        address highBetToken;
+        (, , , , , , lowBetToken, highBetToken, , ) = predictionMarket
+        .conditions(_conditionIndex);
+
+        IBetToken highBet = IBetToken(highBetToken);
+        IBetToken lowBet = IBetToken(lowBetToken);
+        predictionMarket.claim(_conditionIndex);
+
+        uint256[] _checkpoints = marketToCheckpoint[_conditionIndex];
+        for (uint256 index = 0; index < _checkpoints.length; index++) {
+            //update total profit and loss according to the invested amount
+            //increase total vol in latest checkpoint accordingly
+        }
+    }
 
     function getConditionDetails(uint256 _conditionIndex)
         public

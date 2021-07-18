@@ -28,6 +28,7 @@ contract StrategyFactory {
         traderId = traderId + 1;
         traderStrategies[msg.sender].push(traderId);
 
+        //todo: merge below 2 steps into one (add funds in constructor) and remove addTraderFund from here and strategy
         Strategy strategy = new Strategy(_predictionMarket, _name, msg.sender);
         strategy.addTraderFund{value: msg.value}();
 
