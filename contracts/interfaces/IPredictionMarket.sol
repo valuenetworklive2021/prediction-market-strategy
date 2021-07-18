@@ -1,3 +1,4 @@
+//SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.0;
 
 interface IPredictionMarket {
@@ -82,7 +83,7 @@ interface IPredictionMarket {
 
     function settleCondition(uint256 _conditionIndex) external;
 
-    function claim(uint256 _conditionIndex) external;
+    function claim(uint256 _conditionIndex) external returns (bool, uint256);
 
     function getBalance(uint256 _conditionIndex, address _user)
         external

@@ -1,3 +1,4 @@
+//SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.0;
 
 import "./StrategyStorage.sol";
@@ -23,6 +24,5 @@ contract Checkpoint is StrategyStorage {
         existingCheckpoint.totalInvested += _totalInvestedChange;
         existingCheckpoint.totalProfit += _totalProfitChange;
         existingCheckpoint.totalLoss += _totalLossChange;
-        existingCheckpoint.markets.push(marketToAdd);
     }
 }

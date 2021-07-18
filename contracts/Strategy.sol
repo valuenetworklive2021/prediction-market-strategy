@@ -1,21 +1,10 @@
+//SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.0;
 
-import "./interfaces/IPredictionMarket.sol";
 import "./interfaces/IBetToken.sol";
 import "./Checkpoint.sol";
 
 contract Strategy is Checkpoint {
-    struct User {
-        uint256 depositAmount;
-        uint256 entryCheckpointId;
-        uint256 exitCheckpointId;
-        uint256 totalProfit;
-        uint256 totalLoss;
-        bool exited;
-        uint256 remainingClaim;
-        //totalClaimed = amount + profit - loss
-    }
-
     modifier isStrategyActive() {
         require(
             status == StrategyStatus.ACTIVE,
@@ -40,7 +29,7 @@ contract Strategy is Checkpoint {
     constructor(
         address _predictionMarket,
         string memory _name,
-        address _trader
+        address payable _trader
     ) {
         require(
             _trader != address(0),
@@ -61,16 +50,19 @@ contract Strategy is Checkpoint {
         User storage user = userInfo[msg.sender];
 
         require(msg.value > 0, "Strategy::addUserFund: ZERO_FUNDS");
-        require(user.amount == 0, "Strategy::addUserFund: ALREADY_FOLLOWING");
+        require(
+            user.depositAmount == 0,
+            "Strategy::addUserFund: ALREADY_FOLLOWING"
+        );
 
         totalUserFunds += msg.value;
 
-        user.amount = msg.value;
+        user.depositAmount = msg.value;
         users.push(msg.sender);
 
         //get total volume (trader + all users)
-        uint256 checkpoint = addCheckpoint(users, totalVolume);
-        user.entryCheckpointId = checkpoint;
+        addCheckpoint(users, (totalUserFunds + traderFund));
+        user.entryCheckpointId = latestCheckpointId;
 
         //event
     }
@@ -81,11 +73,11 @@ contract Strategy is Checkpoint {
 
         //update checkpoint
         uint256 checkpoint;
-        user.amount -= _amount;
-        user.exitCheckpointId = checkpoint;
+        // user.amount -= _amount;
+        // user.exitCheckpointId = checkpoint;
 
         //apply checks
-        (msg.sender).transfer(_amount);
+        // (msg.sender).transfer(_amount);
 
         //event
     }
@@ -98,9 +90,9 @@ contract Strategy is Checkpoint {
 
     function removeTraderFund() public onlyTrader {
         if (status == StrategyStatus.ACTIVE) status = StrategyStatus.INACTIVE;
-        uint256 amount = getClaimAmount();
+        uint256 amount; // = getClaimAmount();
         traderFund -= amount;
-        (msg.sender).transfer(amount);
+        trader.transfer(amount);
     }
 
     //only if a user or checkpoint exists
@@ -111,22 +103,68 @@ contract Strategy is Checkpoint {
     ) public isStrategyActive onlyTrader {
         //require _amount <= 5% of total trader fund
         //calculate fund
+
+        Checkpoint memory checkpoint = checkpoints[latestCheckpointId];
+        checkpoint.totalInvested += _amount;
+        conditionIndexToCheckpoints[_conditionIndex].push(latestCheckpointId);
+
+        Market memory market;
+        if (_side == 0) {
+            market.lowBets = _amount;
+        } else {
+            market.highBets = _amount;
+        }
+        markets[latestCheckpointId][_conditionIndex] = market;
     }
 
     function claim(uint256 _conditionIndex) public isStrategyActive onlyTrader {
-        address lowBetToken;
-        address highBetToken;
-        (, , , , , , lowBetToken, highBetToken, , ) = predictionMarket
-        .conditions(_conditionIndex);
+        //todo: return following in prediction market
+        //todo: adjust perBetPrice for decimals
+        (bool winner, uint256 perBetPrice) = predictionMarket.claim(
+            _conditionIndex
+        );
+
+        (
+            ,
+            ,
+            ,
+            ,
+            ,
+            ,
+            address lowBetToken,
+            address highBetToken,
+            ,
+
+        ) = predictionMarket.conditions(_conditionIndex);
 
         IBetToken highBet = IBetToken(highBetToken);
         IBetToken lowBet = IBetToken(lowBetToken);
-        predictionMarket.claim(_conditionIndex);
 
-        uint256[] _checkpoints = marketToCheckpoint[_conditionIndex];
-        for (uint256 index = 0; index < _checkpoints.length; index++) {
-            //update total profit and loss according to the invested amount
-            //increase total vol in latest checkpoint accordingly
+        uint256 totalInvested;
+        uint256[] memory checkpointList = conditionIndexToCheckpoints[
+            _conditionIndex
+        ];
+        for (uint256 index = 0; index < checkpointList.length; index++) {
+            Market memory market = markets[checkpointList[index]][
+                _conditionIndex
+            ];
+            Checkpoint memory cp = checkpoints[checkpointList[index]];
+
+            uint256 profit;
+            uint256 loss;
+
+            if (winner && market.highBets > 0) {
+                profit = market.highBets * perBetPrice;
+                loss = market.lowBets;
+            } else {
+                profit = market.lowBets * perBetPrice;
+                loss = market.highBets;
+            }
+
+            cp.totalProfit += profit;
+            cp.totalLoss += loss;
+
+            totalUserFunds = totalUserFunds + profit - loss;
         }
     }
 

@@ -1,4 +1,7 @@
+//SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.0;
+
+import "./interfaces/IPredictionMarket.sol";
 
 contract StrategyStorage {
     enum StrategyStatus {
@@ -20,7 +23,7 @@ contract StrategyStorage {
     //strategy details
     StrategyStatus public status;
     IPredictionMarket public predictionMarket;
-    address public trader;
+    address payable public trader;
     string public strategyName;
     uint256 public traderFund;
     uint256 latestCheckpointId;
@@ -40,10 +43,16 @@ contract StrategyStorage {
         uint256 totalInvested;
         uint256 totalProfit;
         uint256 totalLoss;
-        uint256[] markets;
+    }
+
+    struct Market {
+        uint256 lowBets;
+        uint256 highBets;
     }
 
     mapping(uint256 => Checkpoint) public checkpoints;
 
-    mapping(uint256 => uint256[]) public marketToCheckpoint;
+    //maps checkpoint -> conditionindex -> market
+    mapping(uint256 => mapping(uint256 => Market)) public markets;
+    mapping(uint256 => uint256[]) public conditionIndexToCheckpoints;
 }
