@@ -5,6 +5,8 @@ package-lock.json
 cache
 artifacts
 
+#Compiler files
+bin
 
 #IDE
 settings.json

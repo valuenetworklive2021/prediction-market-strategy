@@ -9,7 +9,7 @@ contract StrategyFactory {
 
     mapping(address => uint256[]) public traderStrategies;
 
-    event CreateStrategy(string trader, uint256 id, uint256 amount);
+    event CreateStrategy(string trader, uint256 id, uint256 amount, address strategyAddress);
 
     constructor(address _predictionMarket) {
         require(
@@ -32,15 +32,12 @@ contract StrategyFactory {
         traderId = traderId + 1;
         traderStrategies[msg.sender].push(traderId);
 
-        //todo: merge below 2 steps into one (add funds in constructor) and remove addTraderFund from here and strategy
-        Strategy strategy = new Strategy(
+        Strategy strategy = new Strategy{value: msg.value}(
             address(predictionMarket),
             _name,
             payable(msg.sender)
         );
-        strategy.addTraderFund{value: msg.value}();
-
-        emit CreateStrategy(_name, traderId, msg.value);
+        emit CreateStrategy(_name, traderId, msg.value, address(strategy)); 
 
         return traderId;
     }

@@ -26,6 +26,7 @@ contract StrategyStorage {
     address payable public trader;
     string public strategyName;
     uint256 public traderFund;
+
     uint256 latestCheckpointId;
 
     //user details
@@ -36,6 +37,9 @@ contract StrategyStorage {
     uint256[] public userAmounts;
 
     uint256 totalUserFunds;
+
+    //Fees Percentage
+    uint256 public traderFees;
 
     struct Checkpoint {
         address[] users;

@@ -31,19 +31,6 @@ interface IPredictionMarket {
         uint256 timestamp
     );
 
-    struct ConditionInfo {
-        string market;
-        address oracle;
-        int256 triggerPrice;
-        uint256 settlementTime;
-        bool isSettled;
-        int256 settledPrice;
-        address lowBetToken;
-        address highBetToken;
-        uint256 totalStakedAbove;
-        uint256 totalStakedBelow;
-    }
-
     function conditions(uint256 _index)
         external
         view
@@ -83,7 +70,12 @@ interface IPredictionMarket {
 
     function settleCondition(uint256 _conditionIndex) external;
 
-    function claim(uint256 _conditionIndex) external returns (bool, uint256);
+    function claim(uint256 _conditionIndex) external;
+
+    function calculateClaimAmount(uint256 _conditionIndex) external 
+    returns (uint8 winningSide, uint256 userstake, uint256 totalWinnerRedeemable, uint256 platformFees);
+
+    function getPerUserClaimAmount(uint256 _conditionIndex) external returns (uint8, uint256);
 
     function getBalance(uint256 _conditionIndex, address _user)
         external

@@ -10,16 +10,14 @@ contract Checkpoint is StrategyStorage {
         Checkpoint storage newCheckpoint = checkpoints[latestCheckpointId++];
         newCheckpoint.users = _users;
         newCheckpoint.totalVolume = _totalVolume;
-        //get amount from userInfo struct through user address
     }
 
     function updateCheckpoint(
         uint256 _checkpointId,
         uint256 _totalInvestedChange,
         uint256 _totalProfitChange,
-        uint256 _totalLossChange,
-        uint256 marketToAdd
-    ) internal returns (uint256) {
+        uint256 _totalLossChange
+    ) internal {
         Checkpoint storage existingCheckpoint = checkpoints[_checkpointId];
         existingCheckpoint.totalInvested += _totalInvestedChange;
         existingCheckpoint.totalProfit += _totalProfitChange;

@@ -1,5 +1,5 @@
 {
-  "name": "Strategy Contracts",
+  "name": "Strategy-Contracts",
   "version": "1.0.0",
   "description": "A smart contract which can be used by trader to invest users funds to various markets in order to generate profit through their unique trading techniques",
   "main": "index.js",
@@ -22,6 +22,6 @@
     "hardhat": "^2.4.3"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^3.1.0-solc-0.7"
+    "@openzeppelin/contracts": "^4.2.0"
   }
 }
