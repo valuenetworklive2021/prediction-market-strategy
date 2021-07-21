@@ -4,6 +4,7 @@ pragma solidity 0.8.0;
 import "./interfaces/IBetToken.sol";
 import "./interfaces/IPredictionMarket.sol";
 import "./Checkpoint.sol";
+import "hardhat/console.sol";
 
 contract Strategy is Checkpoint {
     event StrategyFollowed(
@@ -67,17 +68,17 @@ contract Strategy is Checkpoint {
     function follow() public payable isStrategyActive {
         User storage user = userInfo[msg.sender];
 
-        require(msg.value > 0, "Strategy::addUserFund: ZERO_FUNDS");
+        require(msg.value > 0, "Strategy::follow: ZERO_FUNDS");
         require(
             user.depositAmount == 0,
-            "Strategy::addUserFund: ALREADY_FOLLOWING"
+            "Strategy::follow: ALREADY_FOLLOWING"
         );
 
         totalUserFunds += msg.value;
 
         user.depositAmount = msg.value;
         users.push(msg.sender);
-
+        console.log("users: ", users[0]);
         //get total volume (trader + all users)
         addCheckpoint(users, (totalUserFunds + traderFund));
         user.entryCheckpointId = latestCheckpointId;

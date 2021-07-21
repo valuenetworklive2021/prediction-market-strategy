@@ -1,10 +1,14 @@
 const { expect } = require("chai");
 const { BigNumber } = ethers;
+const strategyABI = require("../artifacts/contracts/Strategy.sol/Strategy.json").abi;
 
 describe("Strategy", function () {
   let trader1, user1, user2, user3;
   const DECIMALS = BigNumber.from(10).pow(18);
   const TRIGGER_VALUE = 60000000000;
+  const SETTLEMENT_TIME = 60000000000;
+  const MARKET = "BTC/USD";
+  const STRATEGY_NAME = "S1";
 
   beforeEach(async () => {
     [trader1, user1, user2, user3] = await ethers.getSigners();
@@ -23,57 +27,56 @@ describe("Strategy", function () {
     await predictionMarket.deployed();
     console.log("PM address: ", predictionMarket.address);
 
-    //Deploying Contract Strategy
-    const Strategy = await ethers.getContractFactory("Strategy");
-    strategy = await Strategy.deploy(predictionMarket.address);
-    await strategy.deployed();
-    console.log("strategy address: ", strategy.address);
+    //Deploying Contract StrategyFactory
+    const StrategyFactory = await ethers.getContractFactory("StrategyFactory");
+    strategyFactory = await StrategyFactory.deploy(predictionMarket.address);
+    await strategyFactory.deployed();
+    console.log("strategy factory address: ", strategyFactory.address);
 
   })
 
   it("Should create market ", async function () {
 
     await predictionMarket.prepareCondition(oracle.address,
-      Math.floor(Date.now() / 1000) + 1000,
+      SETTLEMENT_TIME,
       TRIGGER_VALUE,
-      "BTC/USD");
-    // console.log(await predictionMarket.conditions(1));
+      MARKET);
     expect(await predictionMarket.latestConditionIndex()).to.equal("1");
 
   });
 
-  it("Should create market bet, claim ", async function () {
-    //Checking the transfer function
-    await predictionMarket.prepareCondition(oracle.address,
-      Math.floor(Date.now() / 1000) + 1000,
-      TRIGGER_VALUE,
-      "BTC/USD");
+  it("Should create new strategy ", async function () {
 
-    //create strategy
-    await strategy.createStrategy("Nupura", 1);
-    console.log("Trader Info1", await strategy.name());
+    const traderFund = BigNumber.from(50).mul(DECIMALS);
+    const createdStrategy = await strategyFactory.createStrategy(STRATEGY_NAME,{ value: traderFund });
+    const txReceipt = await createdStrategy.wait();
+    expect(await strategyFactory.traderId()).to.equal("1");
 
-    //addTraderFund
-    const traderValue = BigNumber.from(50).mul(DECIMALS);
-    await strategy.addTraderFund({ value: traderValue });
-    console.log("Trader Info2", await strategy.traderFund());
-
-    //addUSerFund
-    const userValue = BigNumber.from(20).mul(DECIMALS);
-    await strategy.connect(user1).addUserFund({ value: userValue });
-    console.log("User Info", await strategy.connect(user1).userInfo(user1.address));
-
-    //bet
-    await strategy.placeBet(1, 1, BigNumber.from(10).mul(DECIMALS));
-    // console.log("User Info", await strategy.connect(user1).userInfo(user1.address));
-    // console.log("bet Info", await strategy.connect(user1).bets(user1.address,0));
-
-    //get Condition
-    // console.log("Condition Info", await strategy.getConditionDetails("1"));
-
-    //claim
-    await strategy.claim(user1.address, 1);
-    console.log("User Info", await strategy.connect(user1).userInfo(user1.address));
+    // getting Strategy Contract deployed
+    const strategyAddressDeployed = txReceipt.events[0].args.strategyAddress;
+    const strategy = new ethers.Contract(strategyAddressDeployed,strategyABI)     
 
   });
+
+  it("Should create new strategy, add users ", async function () {
+
+    const traderFund = BigNumber.from(50).mul(DECIMALS);
+    const createdStrategy = await strategyFactory.createStrategy(STRATEGY_NAME,{ value: traderFund });
+    const txReceipt = await createdStrategy.wait();
+    expect(await strategyFactory.traderId()).to.equal("1");
+
+    // getting Strategy Contract deployed
+    const strategyAddressDeployed = txReceipt.events[0].args.strategyAddress;
+    const strategy = new ethers.Contract(strategyAddressDeployed,strategyABI) 
+    
+    //User1 follows
+    console.log(strategy);
+    const user1Fund = BigNumber.from(10).mul(DECIMALS);
+    await strategy.connect(user1).follow({ value: user1Fund });  
+
+    expect(await strategy.users(0)).to.equal(user1.address);
+
+  });
+
+ 
 });
