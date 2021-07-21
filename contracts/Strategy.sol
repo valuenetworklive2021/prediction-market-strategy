@@ -12,6 +12,11 @@ contract Strategy is Checkpoint {
         address trader,
         uint256 checkpointId
     );
+    event StrategyUnfollowed(
+        address userunFollowed,
+        uint256 userAmountClaimed,
+        uint256 checkpointId
+    );
     modifier isStrategyActive() {
         require(
             status == StrategyStatus.ACTIVE,
@@ -86,16 +91,28 @@ contract Strategy is Checkpoint {
     //unfollow is subjected to fund availability
     function unfollow() public onlyUser {
         User storage user = userInfo[msg.sender];
+        user.exitCheckpointId = latestCheckpointId;
+        (uint256 userClaimAmount,
+        uint256 userTotalProfit,
+        uint256 userTotalLoss ) = getUserClaimAmount(user);
+        (payable(msg.sender)).transfer(userClaimAmount);
+        user.totalProfit = userTotalProfit;
+        user.totalLoss = userTotalLoss;
 
-        //update checkpoint
-        uint256 checkpoint;
-        // user.amount -= _amount;
-        // user.exitCheckpointId = checkpoint;
+        totalUserFunds -= userClaimAmount;
+        for (uint256 userIndex = 0; userIndex < users.length; userIndex++){
+            if(users[userIndex] == msg.sender) {
+                delete users[userIndex];
+                break;
+            }
+        }
+        addCheckpoint(users, (totalUserFunds + traderFund));
 
-        //apply checks
-        // (msg.sender).transfer(_amount);
-
-        //event
+        emit StrategyUnfollowed(
+            msg.sender,
+            userClaimAmount,
+            latestCheckpointId-1
+        );
     }
     //get user claim amount. deduct fees from profit
     // update exitpoint
@@ -103,11 +120,25 @@ contract Strategy is Checkpoint {
     // add new checkpoint, pop the user from array, update userfund
     // update user(if any)
 
+    // for getting USer claim amount 
+    function getUserClaimAmount( User memory userDetails) internal view returns(uint256 userClaimAmount,
+        uint256 userTotalProfit,
+        uint256 userTotalLoss ){
+        for (uint256 cpIndex = userDetails.entryCheckpointId; cpIndex < userDetails.exitCheckpointId; cpIndex++){
+            Checkpoint memory cp = checkpoints[cpIndex];
+ 
+            uint256 userProfit = (cp.totalProfit * userDetails.depositAmount)/cp.totalVolume;
+            userTotalLoss += (cp.totalLoss * userDetails.depositAmount)/cp.totalVolume;
 
+            userTotalProfit += userProfit - calculateFees(userProfit);            
+        }
+        userClaimAmount = userDetails.depositAmount + userTotalProfit - userTotalLoss;
+        return(userClaimAmount, userTotalProfit, userTotalLoss);
+    }
 
     function removeTraderFund() public onlyTrader {
         if (status == StrategyStatus.ACTIVE) status = StrategyStatus.INACTIVE;
-        uint256 amount; // = getClaimAmount();
+        uint256 amount = getClaimAmount();
         traderFund -= amount;
         trader.transfer(amount);
     }
@@ -122,7 +153,7 @@ contract Strategy is Checkpoint {
             traderTotalLoss += (cp.totalLoss * traderFund)/cp.totalVolume;
 
             uint256 userProfit = cp.totalProfit - traderProfit;
-            traderProfit += calculateFees(userProfit);            
+            traderTotalProfit += traderProfit + calculateFees(userProfit);            
         }
         traderClaimAmount = traderFund + traderTotalProfit - traderTotalLoss;
     }
