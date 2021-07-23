@@ -4,7 +4,6 @@ pragma solidity 0.8.0;
 import "./interfaces/IBetToken.sol";
 import "./interfaces/IPredictionMarket.sol";
 import "./Checkpoint.sol";
-import "hardhat/console.sol";
 
 contract Strategy is Checkpoint {
 
@@ -18,6 +17,11 @@ contract Strategy is Checkpoint {
         address userunFollowed,
         uint256 userAmountClaimed,
         uint256 checkpointId
+    );
+    event BetPlaced(
+        uint256 conditionIndex,
+        uint8 side,
+        uint256 totalAmount
     );
     modifier isStrategyActive() {
         require(
@@ -45,7 +49,6 @@ contract Strategy is Checkpoint {
         string memory _name,
         address payable _trader
     ) payable {
-        console.log("Strayegy Address Contructor: ", address(this));
 
         require(
             _trader != address(0),
@@ -81,9 +84,7 @@ contract Strategy is Checkpoint {
 
         user.depositAmount = msg.value;
         users.push(msg.sender);
-        for (uint256 userIndex = 0; userIndex < users.length; userIndex++){
-            console.log("users: ", users[userIndex]);
-        }
+
         //get total volume (trader + all users)
         addCheckpoint(users, (totalUserFunds + traderFund));
         user.entryCheckpointId = latestCheckpointId;
@@ -181,12 +182,10 @@ contract Strategy is Checkpoint {
         uint256 percentage = (_amount*100)/traderFund ;        
         require(percentage<5,"Strategy::placeBet:INVALID AMOUNT. Percentage > 5");
 
-        uint256 betAmount = (percentage * totalUserFunds)/100 ; 
-
-        Checkpoint memory checkpoint = checkpoints[latestCheckpointId];
+        uint256 betAmount = ((percentage * totalUserFunds)/100) + _amount ;
+        Checkpoint storage checkpoint = checkpoints[latestCheckpointId-1];
         checkpoint.totalInvested += betAmount;
         conditionIndexToCheckpoints[_conditionIndex].push(latestCheckpointId);
-
         Market memory market;
         if (_side == 0) {
             market.lowBets = betAmount;
@@ -194,6 +193,13 @@ contract Strategy is Checkpoint {
             market.highBets = betAmount;
         }
         markets[latestCheckpointId][_conditionIndex] = market;
+
+        predictionMarket.betOnCondition{value:betAmount}(_conditionIndex, _side);
+
+        emit BetPlaced(
+            _conditionIndex,
+            _side,
+            betAmount);
     }
 
     function claim(uint256 _conditionIndex) public isStrategyActive onlyTrader {
