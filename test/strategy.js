@@ -124,5 +124,85 @@ describe("Strategy", function () {
 
 
   });
+
+  
+  it("Should create new strategy, follow-bet-folfow-bet scenario", async function () {
+
+    const traderFund = BigNumber.from(50).mul(DECIMALS).div(1);
+    const createdStrategy = await strategyFactory.createStrategy(STRATEGY_NAME,{ value: traderFund });
+    const txReceipt = await createdStrategy.wait();
+    expect(await strategyFactory.traderId()).to.equal("1");
+
+    //Getting Strategy Contract deployed
+    const strategyAddress = txReceipt.events[0].args.strategyAddress;
+    let provider = await ethers.provider;
+
+    //Creating Instance of strategy contract
+    const strategy = new ethers.Contract(strategyAddress,abi,provider);
+    
+    //User1 follows
+    const user1Fund = BigNumber.from(userInitFunds[0]).mul(DECIMALS).div(1);
+    await strategy.connect(user1).follow({ value: user1Fund });  
+
+    expect(await strategy.users(0)).to.equal(user1.address);
+
+    //User2 Follows
+    const user2Fund = BigNumber.from(userInitFunds[1]).mul(DECIMALS).div(1);
+    await strategy.connect(user2).follow({ value: user2Fund });
+
+    expect(await strategy.users(1)).to.equal(user2.address);
+
+
+    //BET1
+    //Create Market using Prediction Market 
+    await predictionMarket.prepareCondition(oracle.address,
+      SETTLEMENT_TIME,
+      TRIGGER_VALUE,
+      MARKET);
+    expect(await predictionMarket.latestConditionIndex()).to.equal("1");
+
+    await strategy.connect(trader1).bet(1, 1, firstBetAmount);
+    let conditionInfoAfterBet = await predictionMarket.conditions(1);
+
+    let highBetToken = new ethers.Contract(conditionInfoAfterBet.highBetToken,betTokenABI.abi,provider);
+    totalUserFund = userInitFunds[0]+userInitFunds[1];
+    totalFirstBetAmount = BigNumber.from(totalUserFund + traderInitFund).mul(1).mul(DECIMALS).div(100);
+
+    expect(await highBetToken.totalSupply()).to.equal(totalFirstBetAmount);
+    expect((await strategy.checkpoints(1)).totalInvested).to.equal(totalFirstBetAmount);
+    expect(await strategy.trader()).to.equal(trader1.address);
+
+    // User3 Follows
+    const user3Fund = BigNumber.from(userInitFunds[2]).mul(DECIMALS).div(1);
+    await strategy.connect(user3).follow({ value: user3Fund });
+
+    expect(await strategy.users(2)).to.equal(user3.address);
+
+    //User4 Follows
+    const user4Fund = BigNumber.from(userInitFunds[3]).mul(DECIMALS).div(1);
+    await strategy.connect(user4).follow({ value: user4Fund });
+
+    expect(await strategy.users(3)).to.equal(user4.address);
+    totalUserFund += userInitFunds[2]+userInitFunds[3];
+    expect(await strategy.totalUserFunds()).to.equal(BigNumber.from(totalUserFund).mul(DECIMALS).div(1));
+    expect(await strategy.latestCheckpointId()).to.equal(4);
+
+    //BET2
+    //Create Market using Prediction Market 
+    await predictionMarket.prepareCondition(oracle.address,
+      SETTLEMENT_TIME+5000,
+      TRIGGER_VALUE+ 5000,
+      MARKET);
+    expect(await predictionMarket.latestConditionIndex()).to.equal("2");
+
+    await strategy.connect(trader1).bet(2, 0, secondBetAmount);
+    conditionInfoAfterBet = await predictionMarket.conditions(2);
+
+    lowBetToken = new ethers.Contract(conditionInfoAfterBet.lowBetToken,betTokenABI.abi,provider);
+    expect(await lowBetToken.totalSupply()).to.equal(totalSecondBetAmount);
+    expect((await strategy.checkpoints(3)).totalInvested).to.equal(totalSecondBetAmount);
+
+
+  });
  
 });

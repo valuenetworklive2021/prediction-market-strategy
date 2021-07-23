@@ -102,6 +102,8 @@ contract Strategy is Checkpoint {
         (uint256 userClaimAmount,
         uint256 userTotalProfit,
         uint256 userTotalLoss ) = getUserClaimAmount(user);
+        require(userClaimAmount > 0, "Strategy::unfollow: ZERO_CLAIMABLE_AMOUNT");
+
         (payable(msg.sender)).transfer(userClaimAmount);
         user.totalProfit = userTotalProfit;
         user.totalLoss = userTotalLoss;
