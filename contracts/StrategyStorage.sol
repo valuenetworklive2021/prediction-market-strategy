@@ -27,7 +27,7 @@ contract StrategyStorage {
     string public strategyName;
     uint256 public traderFund;
 
-    uint256 latestCheckpointId;
+    uint256 public latestCheckpointId;
 
     //user details
     mapping(address => User) public userInfo;
@@ -36,7 +36,7 @@ contract StrategyStorage {
     address[] public users;
     uint256[] public userAmounts;
 
-    uint256 totalUserFunds;
+    uint256 public totalUserFunds;
 
     //Fees Percentage
     uint256 public traderFees;

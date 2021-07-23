@@ -7,6 +7,7 @@ import "./Checkpoint.sol";
 import "hardhat/console.sol";
 
 contract Strategy is Checkpoint {
+
     event StrategyFollowed(
         address userFollowed,
         uint256 userAmount,
@@ -44,6 +45,8 @@ contract Strategy is Checkpoint {
         string memory _name,
         address payable _trader
     ) payable {
+        console.log("Strayegy Address Contructor: ", address(this));
+
         require(
             _trader != address(0),
             "Strategy::constructor:INVALID TRADER ADDRESS."
@@ -78,7 +81,9 @@ contract Strategy is Checkpoint {
 
         user.depositAmount = msg.value;
         users.push(msg.sender);
-        console.log("users: ", users[0]);
+        for (uint256 userIndex = 0; userIndex < users.length; userIndex++){
+            console.log("users: ", users[userIndex]);
+        }
         //get total volume (trader + all users)
         addCheckpoint(users, (totalUserFunds + traderFund));
         user.entryCheckpointId = latestCheckpointId;
