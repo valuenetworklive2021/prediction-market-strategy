@@ -9,7 +9,13 @@ contract StrategyFactory {
 
     mapping(address => uint256[]) public traderStrategies;
 
-    event CreateStrategy(string trader, uint256 id, uint256 amount, address strategyAddress);
+    event CreateStrategy(
+        address traderAddress,
+        string traderName,
+        uint256 id,
+        uint256 amount,
+        address strategyAddress
+    );
 
     constructor(address _predictionMarket) {
         require(
@@ -37,7 +43,13 @@ contract StrategyFactory {
             _name,
             payable(msg.sender)
         );
-        emit CreateStrategy(_name, traderId, msg.value, address(strategy)); 
+        emit CreateStrategy(
+            msg.sender,
+            _name,
+            traderId,
+            msg.value,
+            address(strategy)
+        );
 
         return traderId;
     }

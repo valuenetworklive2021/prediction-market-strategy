@@ -241,11 +241,9 @@ contract PredictionMarket is IPredictionMarket {
                 userStake
             );
 
-            owner.transfer(platformFees);
-            userAddress.transfer(totalWinnerRedeemable);
         } else if (conditionInfo.settledPrice < conditionInfo.triggerPrice) {
             //Users who predicted below price wins
-            winningSide = 1;
+            winningSide = 0;
             userStake = lowBetToken.balanceOf(userAddress);
 
             highBetToken.burnAll(userAddress);

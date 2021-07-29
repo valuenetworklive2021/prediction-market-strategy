@@ -10,17 +10,27 @@ contract Strategy is Checkpoint {
     event StrategyFollowed(
         address userFollowed,
         uint256 userAmount,
-        address trader,
+        address traderAddress,
+        address strategyAddress,
         uint256 checkpointId
     );
     event StrategyUnfollowed(
-        address userunFollowed,
+        address userUnFollowed,
         uint256 userAmountClaimed,
+        address strategyAddress,
+        bool isFullClaim,
         uint256 checkpointId
     );
     event BetPlaced(
         uint256 conditionIndex,
         uint8 side,
+        uint256 totalAmount,
+        uint256 checkpointId
+    );
+    event BetClaimed(
+        uint256 conditionIndex,
+        uint8 winningSide,
+        bool isWon,
         uint256 totalAmount
     );
     modifier isStrategyActive() {
@@ -92,6 +102,7 @@ contract Strategy is Checkpoint {
          msg.sender,
          msg.value,
          trader,
+         address(this),
          latestCheckpointId);
     }
 
@@ -120,6 +131,8 @@ contract Strategy is Checkpoint {
         emit StrategyUnfollowed(
             msg.sender,
             userClaimAmount,
+            address(this),
+            isFullClaim,
             latestCheckpointId-1
         );
     }
@@ -201,7 +214,8 @@ contract Strategy is Checkpoint {
         emit BetPlaced(
             _conditionIndex,
             _side,
-            betAmount);
+            betAmount,
+            latestCheckpointId-1);
     }
 
     function claim(uint256 _conditionIndex) public isStrategyActive onlyTrader {
@@ -269,5 +283,24 @@ contract Strategy is Checkpoint {
         (market, , , settlementTime, isSettled, , , , , ) = (
             predictionMarket.conditions(_conditionIndex)
         );
+    }
+
+    function getActiveConditions(uint256 _checkpoint)
+        public
+        view
+        returns (
+            uint256[] memory conditionStatus
+        )
+    {
+        uint256[] memory condition = conditionIndexToCheckpoints[_checkpoint];
+        for (uint256 index = 0; index < condition.length; index++) {
+            (string memory market, , , uint256 settlementTime, bool isSettled, , , , , ) = (
+                predictionMarket.conditions(condition[index])
+            );
+            if(!isSettled) {
+                conditionStatus.push(condition[index]);
+            }
+            //compare settlement time, push id in an array and return
+        }
     }
 }
