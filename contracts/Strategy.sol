@@ -32,6 +32,7 @@ contract Strategy is Checkpoint {
         bool isWon,
         uint256 totalAmount
     );
+    
     modifier isStrategyActive() {
         require(
             status == StrategyStatus.ACTIVE,
