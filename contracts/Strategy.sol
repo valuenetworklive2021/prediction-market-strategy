@@ -6,7 +6,6 @@ import "./interfaces/IPredictionMarket.sol";
 import "./Checkpoint.sol";
 
 contract Strategy is Checkpoint {
-
     event StrategyFollowed(
         address userFollowed,
         uint256 userAmount,
@@ -59,7 +58,6 @@ contract Strategy is Checkpoint {
         string memory _name,
         address payable _trader
     ) payable {
-
         require(
             _trader != address(0),
             "Strategy::constructor:INVALID TRADER ADDRESS."
@@ -68,10 +66,7 @@ contract Strategy is Checkpoint {
             _predictionMarket != address(0),
             "Strategy::constructor:INVALID PREDICTION MARKET ADDRESS."
         );
-        require(
-            msg.value > 0, 
-            "Strategy::constructor: ZERO_FUNDS"
-        );
+        require(msg.value > 0, "Strategy::constructor: ZERO_FUNDS");
 
         predictionMarket = IPredictionMarket(_predictionMarket);
         strategyName = _name;
@@ -85,10 +80,7 @@ contract Strategy is Checkpoint {
         User storage user = userInfo[msg.sender];
 
         require(msg.value > 0, "Strategy::follow: ZERO_FUNDS");
-        require(
-            user.depositAmount == 0,
-            "Strategy::follow: ALREADY_FOLLOWING"
-        );
+        require(user.depositAmount == 0, "Strategy::follow: ALREADY_FOLLOWING");
 
         totalUserFunds += msg.value;
 
@@ -99,29 +91,35 @@ contract Strategy is Checkpoint {
         addCheckpoint(users, (totalUserFunds + traderFund));
         user.entryCheckpointId = latestCheckpointId;
         emit StrategyFollowed(
-         msg.sender,
-         msg.value,
-         trader,
-         address(this),
-         latestCheckpointId);
+            msg.sender,
+            msg.value,
+            trader,
+            address(this),
+            latestCheckpointId
+        );
     }
 
     //unfollow is subjected to fund availability
     function unfollow() public onlyUser {
         User storage user = userInfo[msg.sender];
         user.exitCheckpointId = latestCheckpointId;
-        (uint256 userClaimAmount,
-        uint256 userTotalProfit,
-        uint256 userTotalLoss ) = getUserClaimAmount(user);
-        require(userClaimAmount > 0, "Strategy::unfollow: ZERO_CLAIMABLE_AMOUNT");
+        (
+            uint256 userClaimAmount,
+            uint256 userTotalProfit,
+            uint256 userTotalLoss
+        ) = getUserClaimAmount(user);
+        require(
+            userClaimAmount > 0,
+            "Strategy::unfollow: ZERO_CLAIMABLE_AMOUNT"
+        );
 
         (payable(msg.sender)).transfer(userClaimAmount);
         user.totalProfit = userTotalProfit;
         user.totalLoss = userTotalLoss;
 
         totalUserFunds -= userClaimAmount;
-        for (uint256 userIndex = 0; userIndex < users.length; userIndex++){
-            if(users[userIndex] == msg.sender) {
+        for (uint256 userIndex = 0; userIndex < users.length; userIndex++) {
+            if (users[userIndex] == msg.sender) {
                 delete users[userIndex];
                 break;
             }
@@ -133,29 +131,46 @@ contract Strategy is Checkpoint {
             userClaimAmount,
             address(this),
             isFullClaim,
-            latestCheckpointId-1
+            latestCheckpointId - 1
         );
     }
+
     //get user claim amount. deduct fees from profit
     // update exitpoint
     // transfer amt
     // add new checkpoint, pop the user from array, update userfund
     // update user(if any)
 
-    // for getting USer claim amount 
-    function getUserClaimAmount( User memory userDetails) internal view returns(uint256 userClaimAmount,
-        uint256 userTotalProfit,
-        uint256 userTotalLoss ){
-        for (uint256 cpIndex = userDetails.entryCheckpointId; cpIndex < userDetails.exitCheckpointId; cpIndex++){
+    // for getting USer claim amount
+    function getUserClaimAmount(User memory userDetails)
+        internal
+        view
+        returns (
+            uint256 userClaimAmount,
+            uint256 userTotalProfit,
+            uint256 userTotalLoss
+        )
+    {
+        for (
+            uint256 cpIndex = userDetails.entryCheckpointId;
+            cpIndex < userDetails.exitCheckpointId;
+            cpIndex++
+        ) {
             Checkpoint memory cp = checkpoints[cpIndex];
- 
-            uint256 userProfit = (cp.totalProfit * userDetails.depositAmount)/cp.totalVolume;
-            userTotalLoss += (cp.totalLoss * userDetails.depositAmount)/cp.totalVolume;
 
-            userTotalProfit += userProfit - calculateFees(userProfit);            
+            uint256 userProfit = (cp.totalProfit * userDetails.depositAmount) /
+                cp.totalVolume;
+            userTotalLoss +=
+                (cp.totalLoss * userDetails.depositAmount) /
+                cp.totalVolume;
+
+            userTotalProfit += userProfit - calculateFees(userProfit);
         }
-        userClaimAmount = userDetails.depositAmount + userTotalProfit - userTotalLoss;
-        return(userClaimAmount, userTotalProfit, userTotalLoss);
+        userClaimAmount =
+            userDetails.depositAmount +
+            userTotalProfit -
+            userTotalLoss;
+        return (userClaimAmount, userTotalProfit, userTotalLoss);
     }
 
     function removeTraderFund() public onlyTrader {
@@ -165,24 +180,33 @@ contract Strategy is Checkpoint {
         trader.transfer(amount);
     }
 
-    // for getting Trader claim amount 
-    function getClaimAmount() internal view returns(uint256 traderClaimAmount){
-        uint256 traderTotalProfit; 
-        uint256 traderTotalLoss; 
-        for (uint256 cpIndex = 0; cpIndex < latestCheckpointId; cpIndex++){
+    // for getting Trader claim amount
+    function getClaimAmount()
+        internal
+        view
+        returns (uint256 traderClaimAmount)
+    {
+        uint256 traderTotalProfit;
+        uint256 traderTotalLoss;
+        for (uint256 cpIndex = 0; cpIndex < latestCheckpointId; cpIndex++) {
             Checkpoint memory cp = checkpoints[cpIndex];
-            uint256 traderProfit = (cp.totalProfit * traderFund)/cp.totalVolume;
-            traderTotalLoss += (cp.totalLoss * traderFund)/cp.totalVolume;
+            uint256 traderProfit = (cp.totalProfit * traderFund) /
+                cp.totalVolume;
+            traderTotalLoss += (cp.totalLoss * traderFund) / cp.totalVolume;
 
             uint256 userProfit = cp.totalProfit - traderProfit;
-            traderTotalProfit += traderProfit + calculateFees(userProfit);            
+            traderTotalProfit += traderProfit + calculateFees(userProfit);
         }
         traderClaimAmount = traderFund + traderTotalProfit - traderTotalLoss;
     }
 
     //fuction to calculate fees
-    function calculateFees(uint256 amount) internal view returns (uint256 feeAmount) {
-        feeAmount = (amount*traderFees)/10000;
+    function calculateFees(uint256 amount)
+        internal
+        view
+        returns (uint256 feeAmount)
+    {
+        feeAmount = (amount * traderFees) / 10000;
     }
 
     function bet(
@@ -190,15 +214,21 @@ contract Strategy is Checkpoint {
         uint8 _side,
         uint256 _amount
     ) public isStrategyActive onlyTrader {
-        require(latestCheckpointId>0,"Strategy::bet: NO CHECKPOINT CREATED YET");
+        require(
+            latestCheckpointId > 0,
+            "Strategy::bet: NO CHECKPOINT CREATED YET"
+        );
 
-        require(users.length > 0,"Strategy::bet: NO USERS EXIST");
+        require(users.length > 0, "Strategy::bet: NO USERS EXIST");
 
-        uint256 percentage = (_amount*100)/traderFund ;        
-        require(percentage<5,"Strategy::placeBet:INVALID AMOUNT. Percentage > 5");
+        uint256 percentage = (_amount * 100) / traderFund;
+        require(
+            percentage < 5,
+            "Strategy::placeBet:INVALID AMOUNT. Percentage > 5"
+        );
 
-        uint256 betAmount = ((percentage * totalUserFunds)/100) + _amount ;
-        Checkpoint storage checkpoint = checkpoints[latestCheckpointId-1];
+        uint256 betAmount = ((percentage * totalUserFunds) / 100) + _amount;
+        Checkpoint storage checkpoint = checkpoints[latestCheckpointId - 1];
         checkpoint.totalInvested += betAmount;
         conditionIndexToCheckpoints[_conditionIndex].push(latestCheckpointId);
         Market memory market;
@@ -209,23 +239,18 @@ contract Strategy is Checkpoint {
         }
         markets[latestCheckpointId][_conditionIndex] = market;
 
-        predictionMarket.betOnCondition{value:betAmount}(_conditionIndex, _side);
-
-        emit BetPlaced(
+        predictionMarket.betOnCondition{value: betAmount}(
             _conditionIndex,
             _side,
             betAmount,
-            latestCheckpointId-1);
+            latestCheckpointId - 1
+        );
     }
 
     function claim(uint256 _conditionIndex) public isStrategyActive onlyTrader {
-
-        (uint8 winningSide, uint256 perBetPrice) = predictionMarket.getPerUserClaimAmount(
-            _conditionIndex
-        );
-        predictionMarket.claim(
-            _conditionIndex
-        );
+        (uint8 winningSide, uint256 perBetPrice) = predictionMarket
+            .getPerUserClaimAmount(_conditionIndex);
+        predictionMarket.claim(_conditionIndex);
 
         (
             ,
@@ -256,7 +281,7 @@ contract Strategy is Checkpoint {
             uint256 profit;
             uint256 loss;
 
-            if (winningSide==1 && market.highBets > 0) {
+            if (winningSide == 1 && market.highBets > 0) {
                 profit = market.highBets * perBetPrice;
                 loss = market.lowBets;
             } else {
@@ -269,6 +294,7 @@ contract Strategy is Checkpoint {
 
             totalUserFunds = totalUserFunds + profit - loss;
         }
+        //add event
     }
 
     function getConditionDetails(uint256 _conditionIndex)
@@ -288,16 +314,23 @@ contract Strategy is Checkpoint {
     function getActiveConditions(uint256 _checkpoint)
         public
         view
-        returns (
-            uint256[] memory conditionStatus
-        )
+        returns (uint256[] memory conditionStatus)
     {
         uint256[] memory condition = conditionIndexToCheckpoints[_checkpoint];
         for (uint256 index = 0; index < condition.length; index++) {
-            (string memory market, , , uint256 settlementTime, bool isSettled, , , , , ) = (
-                predictionMarket.conditions(condition[index])
-            );
-            if(!isSettled) {
+            (
+                string memory market,
+                ,
+                ,
+                uint256 settlementTime,
+                bool isSettled,
+                ,
+                ,
+                ,
+                ,
+
+            ) = (predictionMarket.conditions(condition[index]));
+            if (!isSettled) {
                 conditionStatus.push(condition[index]);
             }
             //compare settlement time, push id in an array and return
