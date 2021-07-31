@@ -32,7 +32,7 @@ contract Strategy is Checkpoint {
         bool isWon,
         uint256 totalAmount
     );
-    
+
     modifier isStrategyActive() {
         require(
             status == StrategyStatus.ACTIVE,
@@ -91,6 +91,7 @@ contract Strategy is Checkpoint {
         //get total volume (trader + all users)
         addCheckpoint(users, (totalUserFunds + traderFund));
         user.entryCheckpointId = latestCheckpointId;
+
         emit StrategyFollowed(
             msg.sender,
             msg.value,
