@@ -1,0 +1,249 @@
+
+
+totalUserFunds (updates only on follow and unfollow)
+totalBetFunds (updates only on bet and claim)
+totalVolume (totalUserFunds + totalTraderFunds + totalProfit - totalLoss)
+
+follow: done
+  update totalAvailable bet amount------
+  update total strategy user funds ---------
+  update user info-------
+  update entry market--------
+
+bet: done
+  push conditionindex in an array
+  place bet 
+  store users for which bet placed
+  store each users amount
+  store totalAmount for bet
+  decrease totalAvailable bet amount
+  update marketToBets
+  update marketStatus
+
+bet claim:
+  update Bet struct-------
+  update marketStatus--------
+  update totalAvailable bet amount------
+
+unfollow:
+  update total profit and loss
+  update exit conditionindex
+  decrease totalAvailable bet amount
+  decrease total strategy user funds
+
+user claim:
+
+trader claim:
+
+(fee is directly sent to tradr on each unfollow and claim)
+
+
+uint256 exitUserAmount
+
+
+if(totalInvested < totalClaimed) deductFee();
+
+initialDeposit
+
+betAmount - (- loss or + profit)
+
+remainingAmount
+
+
+traverse Betids (strating betid, end betId)
+ totalInvestedAmount
+ 
+ 
+
+
+
+pragma solidity 0.8.0;
+
+import "./AggregatorV3Interface.sol";
+import "./IPredictionMarket.sol";
+
+contract Strategy {
+    uint256 public userVolume;
+
+    uint256 public traderId;
+    string public name;
+    uint256 public traderFund;
+    uint256 public traderBalance;
+    Market[] public markets;
+    address[] public users;
+
+    struct User {
+        uint256 userFund;
+        uint256 userBalance;
+    }
+
+    struct Market {
+        uint256 conditionIndex;
+        uint256 highBetAmount;
+        uint256 lowBetAmount;
+        uint256 amountClaimed;
+    }
+
+    struct Bet {
+        uint256 conditionIndex;
+        uint256 amountPlaced;
+        uint256 amountClaimed;
+        bool claimed;
+    }
+
+    // mapping (address => Trader) public traderInfo;
+    mapping(address => User) public userInfo;
+    mapping(address => uint256[]) public userMarkets;
+    mapping(address => Bet[]) public bets;
+
+    IPredictionMarket public predictionMarket;
+
+    constructor(address _predictionMarket) {
+        predictionMarket = IPredictionMarket(_predictionMarket);
+    }
+
+    function createStrategy(string memory _name, uint256 _traderId) public {
+        // require (checkTrader.traderId == 0,"Strategy::addUserFund: TRADER ALREADY PRESENT.");
+        traderId = _traderId;
+        name = _name;
+        traderFund = 0;
+        traderBalance = 0;
+    }
+
+    function addUserFund() public payable {
+        require(msg.value > 0, "Strategy::addUserFund:SEND SOME FUNDS.");
+        User storage user = userInfo[msg.sender];
+        user.userFund += msg.value;
+        user.userBalance += msg.value;
+        userVolume += msg.value;
+        users.push(msg.sender);
+    }
+
+    function addTraderFund() public payable {
+        require(msg.value > 0, "Strategy::addTraderFund:SEND SOME FUNDS.");
+        traderFund += msg.value;
+        traderBalance += msg.value;
+    }
+
+    function removeUserFund(uint256 amount) public {
+        User storage user = userInfo[msg.sender];
+
+        require(
+            amount > 0 && amount <= user.userBalance,
+            "Strategy::removeUserFund:INVALID AMOUNT."
+        );
+        user.userFund -= amount;
+        user.userBalance -= amount;
+        userVolume -= amount;
+
+        (msg.sender).transfer(amount);
+    }
+
+    function removeTraderFund(uint256 amount) public {
+        require(
+            amount > 0 && amount <= traderBalance,
+            "Strategy::removeUserFund:INVALID AMOUNT."
+        );
+        traderFund -= amount;
+        traderBalance -= amount;
+
+        (msg.sender).transfer(amount);
+    }
+
+    //bet for single user
+    // function bet(address _userAddress, uint256 _conditionIndex, uint8 _side, uint256 _amount) public {
+    //     Trader memory trader = traderInfo[msg.sender];
+    //     uint256 currentTraderBalance = trader.traderBalance;
+    //     console.log(_amount,"amount bet");
+    //     console.log(currentTraderBalance,"TraderBalance bet");
+    //     uint256 percentage = (_amount*100)/currentTraderBalance ;   //todo percentage <5%
+    //     console.log(percentage,"percentage");
+    //     User storage user = userInfo[_userAddress];
+    //     uint256 betAmount = user.userBalance * (percentage) ;
+    //     // uint256 totalAmountFunded = user.userBalance;
+    //     // uint256 betAmount = (totalAmountFunded * _proportion)/100;
+    //     console.log(betAmount,"final bet");
+
+    //     Bet memory newBet = Bet({
+    //         conditionIndex: _conditionIndex,
+    //         amountPlaced: betAmount,
+    //         amountClaimed: 0,
+    //         claimed: false
+    //     });
+    //     bets[_userAddress].push(newBet);
+    //     user.userBalance -= betAmount;
+    //     predictionMarket.betOnCondition{value:betAmount}(_conditionIndex, _side);
+    // }
+
+    function placeBet(
+        uint256 _conditionIndex,
+        uint8 _side,
+        uint256 _amount
+    ) public {
+        console.log(_amount, "amount bet", userVolume);
+        uint256 percentage = (_amount * 100) / traderBalance; //todo percentage <5%
+        require(
+            percentage < 5,
+            "Strategy::placeBet:INVALID AMOUNT. Percentage > 5"
+        );
+        uint256 betAmount = (percentage * userVolume) / 100;
+        console.log(percentage, "percentage, bet amount", betAmount);
+        Market memory newMarket = Market({
+            conditionIndex: _conditionIndex,
+            highBetAmount: 0,
+            lowBetAmount: 0,
+            amountClaimed: 0
+        });
+        if (_side == 1) newMarket.highBetAmount += betAmount;
+        else if (_side == 0) newMarket.lowBetAmount += betAmount;
+        markets.push(newMarket);
+
+        Bet memory newBet = Bet({
+            conditionIndex: _conditionIndex,
+            amountPlaced: betAmount,
+            amountClaimed: 0,
+            claimed: false
+        });
+        for (uint256 i = 0; i < users.length; i++) {
+            bets[users[i]].push(newBet);
+        }
+        predictionMarket.betOnCondition{value: betAmount}(
+            _conditionIndex,
+            _side
+        );
+    }
+
+    function getConditionDetails(uint256 _conditionIndex)
+        public
+        view
+        returns (
+            string memory market,
+            uint256 settlementTime,
+            bool isSettled
+        )
+    {
+        (market, , , settlementTime, isSettled, , , , , ) = (
+            predictionMarket.conditions(_conditionIndex)
+        );
+    }
+
+    function claim(address _userAddress, uint256 _conditionIndex) public {
+        (
+            string memory market,
+            uint256 settlementTime,
+            bool isSettled
+        ) = getConditionDetails(_conditionIndex);
+
+        console.log("Contract conditionDetails: ", isSettled);
+        //Bet[] memory userBets = bets[_userAddress];
+        //Bet memory betToClaim;
+        //// ConditionInfo memory conditionDetails = predictionMarket.conditions(_conditionIndex);
+        //for (uint256 i=0;i<userBets.length; i++ ){
+        //    if(userBets[i].conditionIndex == _conditionIndex){
+        //        betToClaim = userBets[i];
+        //        userBets[i].claimed = true;
+        //    }
+        //}
+        //predictionMarket.claim(_conditionIndex);
+    }
+}
