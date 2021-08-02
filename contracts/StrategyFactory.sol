@@ -50,7 +50,7 @@ contract StrategyFactory {
         emit StartegyCreated(
             msg.sender,
             _name,
-            traderId,
+            strategyID,
             msg.value,
             address(strategy)
         );

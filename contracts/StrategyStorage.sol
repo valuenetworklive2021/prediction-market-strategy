@@ -7,11 +7,15 @@ contract StrategyStorage {
     //strategy details
     StrategyStatus public status;
     IPredictionMarket public predictionMarket;
+
     address payable public trader;
     string public strategyName;
     uint256 public traderFund;
     uint256 public totalUserFunds;
-    uint256 public latestCheckpointId;
+
+    //amount available in strategy which can be invetsed (removes bet applied, profits and losses)
+    uint256 public totalBetFunds;
+
     //Fees Percentage
     uint256 public traderFees;
 
@@ -20,39 +24,38 @@ contract StrategyStorage {
         INACTIVE
     }
 
-    struct Checkpoint {
-        address[] users;
-        uint256 totalVolume;
-        uint256 totalInvested;
-        uint256 totalProfit;
-        uint256 totalLoss;
+    struct Bet {
+        uint256 betAmount;
+        uint256 conditionIndex;
+        uint8 side;
+        uint256[] users;
+        uint256[] userAmounts;
+        uint256 claimAmount;
     }
 
-    struct Market {
-        uint256 lowBets;
-        uint256 highBets;
-    }
+    //conditionIndex => betId[]
+    mapping(uint256 => uint256[]) public marketToBets;
+
+    //betId => Bet struct
+    mapping(uint256 => Bet) public bets;
 
     struct User {
-        uint256 depositAmount;
-        uint256 entryCheckpointId;
-        uint256 exitCheckpointId;
+        uint256 initialdepositAmount;
         uint256 totalProfit;
         uint256 totalLoss;
         bool exited;
         uint256 remainingClaim;
+        uint256 firstMarketIndex;
+        uint256 exitMarketIndex;
     }
 
     //user details
     mapping(address => User) public userInfo;
-    mapping(uint256 => Checkpoint) public checkpoints;
 
     //to get list of users
     address[] public users;
-    uint256[] public userAmounts;
+    // uint256[] public userAmounts;
 
-    
-    //maps checkpoint -> conditionindex -> market
-    mapping(uint256 => mapping(uint256 => Market)) public markets;
-    mapping(uint256 => uint256[]) public conditionIndexToCheckpoints;
+    //condition indexes
+    uint256[] public markets;
 }

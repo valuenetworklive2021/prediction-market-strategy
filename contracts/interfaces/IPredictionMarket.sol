@@ -70,12 +70,20 @@ interface IPredictionMarket {
 
     function settleCondition(uint256 _conditionIndex) external;
 
-    function claim(uint256 _conditionIndex) external;
+    function claim(uint256 _conditionIndex) external returns (uint256, uint8);
 
-    function calculateClaimAmount(uint256 _conditionIndex) external 
-    returns (uint8 winningSide, uint256 userstake, uint256 totalWinnerRedeemable, uint256 platformFees);
+    function calculateClaimAmount(uint256 _conditionIndex)
+        external
+        returns (
+            uint8 winningSide,
+            uint256 userstake,
+            uint256 totalWinnerRedeemable,
+            uint256 platformFees
+        );
 
-    function getPerUserClaimAmount(uint256 _conditionIndex) external returns (uint8, uint256);
+    function getPerUserClaimAmount(uint256 _conditionIndex)
+        external
+        returns (uint8, uint256);
 
     function getBalance(uint256 _conditionIndex, address _user)
         external
