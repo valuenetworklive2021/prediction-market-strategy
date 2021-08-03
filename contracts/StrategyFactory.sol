@@ -7,9 +7,9 @@ contract StrategyFactory {
     IPredictionMarket public predictionMarket;
     uint256 public strategyID;
 
-    mapping(address => uint256[]) public traderStrategies;
     //strategyID -> strategy
     mapping(uint256 => address) public strategies;
+    mapping(address => uint256[]) public traderStrategies;
 
     event StartegyCreated(
         address traderAddress,
@@ -50,10 +50,9 @@ contract StrategyFactory {
         emit StartegyCreated(
             msg.sender,
             _name,
-            traderId,
+            strategyID,
             msg.value,
             address(strategy)
         );
-        return strategyID;
     }
 }
