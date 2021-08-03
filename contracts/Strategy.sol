@@ -238,38 +238,35 @@ contract Strategy is StrategyStorage {
     //********************************************************************* */
     // //unfollow is subjected to fund availability
     function unfollow() public onlyUser {
-        User storage user = userInfo[msg.sender];
-        user.exitCheckpointId = latestCheckpointId;
-        (
-            uint256 userClaimAmount,
-            uint256 userTotalProfit,
-            uint256 userTotalLoss
-        ) = getUserClaimAmount(user);
-        require(
-            userClaimAmount > 0,
-            "Strategy::unfollow: ZERO_CLAIMABLE_AMOUNT"
-        );
+        // User storage user = userInfo[msg.sender];
+        // (
+        //     uint256 userClaimAmount,
+        //     uint256 userTotalProfit,
+        //     uint256 userTotalLoss
+        // ) = getUserClaimAmount(user);
+        // require(
+        //     userClaimAmount > 0,
+        //     "Strategy::unfollow: ZERO_CLAIMABLE_AMOUNT"
+        // );
 
-        (payable(msg.sender)).transfer(userClaimAmount);
-        user.totalProfit = userTotalProfit;
-        user.totalLoss = userTotalLoss;
+        // (payable(msg.sender)).transfer(userClaimAmount);
+        // user.totalProfit = userTotalProfit;
+        // user.totalLoss = userTotalLoss;
 
-        totalUserFunds -= userClaimAmount;
+        // totalUserFunds -= userClaimAmount;
+        _removeUser(msg.sender);
+
+        // emit StrategyUnfollowed(msg.sender, userClaimAmount, address(this));
+    }
+
+    function _removeUser(address _user) internal returns (uint256 _index) {
         for (uint256 userIndex = 0; userIndex < users.length; userIndex++) {
-            if (users[userIndex] == msg.sender) {
+            if (users[userIndex] == _user) {
+                _index = userIndex;
                 delete users[userIndex];
                 break;
             }
         }
-        addCheckpoint(users, (totalUserFunds + traderFund));
-
-        emit StrategyUnfollowed(
-            msg.sender,
-            userClaimAmount,
-            address(this),
-            isFullClaim,
-            latestCheckpointId - 1
-        );
     }
 
     // function removeTraderFund() public onlyTrader {
