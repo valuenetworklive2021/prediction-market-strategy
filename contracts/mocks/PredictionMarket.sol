@@ -29,7 +29,6 @@ contract PredictionMarket is IPredictionMarket {
         uint256 totalStakedBelow;
     }
 
-   
     modifier onlyOwner() {
         require(msg.sender == owner, "Not Owner");
         _;
@@ -84,8 +83,8 @@ contract PredictionMarket is IPredictionMarket {
 
     function probabilityRatio(uint256 _conditionIndex)
         external
-        override
         view
+        override
         returns (uint256 aboveProbabilityRatio, uint256 belowProbabilityRatio)
     {
         ConditionInfo storage conditionInfo = conditions[_conditionIndex];
@@ -94,11 +93,11 @@ contract PredictionMarket is IPredictionMarket {
             return (0, 0);
         }
 
-        uint256 ethStakedForAbove =
-            BetToken(conditionInfo.highBetToken).totalSupply();
+        uint256 ethStakedForAbove = BetToken(conditionInfo.highBetToken)
+            .totalSupply();
 
-        uint256 ethStakedForBelow =
-            BetToken(conditionInfo.lowBetToken).totalSupply();
+        uint256 ethStakedForBelow = BetToken(conditionInfo.lowBetToken)
+            .totalSupply();
 
         uint256 totalETHStaked = ethStakedForAbove.add(ethStakedForBelow);
 
@@ -112,24 +111,24 @@ contract PredictionMarket is IPredictionMarket {
 
     function userTotalETHStaked(uint256 _conditionIndex, address userAddress)
         public
-        override
         view
+        override
         returns (uint256 totalEthStaked)
     {
         ConditionInfo storage conditionInfo = conditions[_conditionIndex];
-        uint256 ethStakedForAbove =
-            BetToken(conditionInfo.highBetToken).balanceOf(userAddress);
+        uint256 ethStakedForAbove = BetToken(conditionInfo.highBetToken)
+            .balanceOf(userAddress);
 
-        uint256 ethStakedForBelow =
-            BetToken(conditionInfo.lowBetToken).balanceOf(userAddress);
+        uint256 ethStakedForBelow = BetToken(conditionInfo.lowBetToken)
+            .balanceOf(userAddress);
 
         totalEthStaked = ethStakedForAbove.add(ethStakedForBelow);
     }
 
     function betOnCondition(uint256 _conditionIndex, uint8 _prediction)
         public
-        override
         payable
+        override
     {
         ConditionInfo storage conditionInfo = conditions[_conditionIndex];
         require(conditionInfo.oracle != address(0), "Condition doesn't exists");
@@ -185,32 +184,45 @@ contract PredictionMarket is IPredictionMarket {
 
     function claim(uint256 _conditionIndex) public override {
         address payable userAddress = payable(msg.sender);
-        (uint8 winningSide,
-        uint256 userstake, 
-        uint256 totalWinnerRedeemable, 
-        uint256 platformFees) = calculateClaimAmount(_conditionIndex);
+        (
+            uint8 winningSide,
+            uint256 userstake,
+            uint256 totalWinnerRedeemable,
+            uint256 platformFees
+        ) = calculateClaimAmount(_conditionIndex);
         owner.transfer(platformFees);
         userAddress.transfer(totalWinnerRedeemable);
-        
+
         emit UserClaimed(_conditionIndex, userAddress, totalWinnerRedeemable);
     }
 
-
-
     //get per user claim amount
-    function getPerUserClaimAmount(uint256 _conditionIndex) public override  returns(uint8 , uint256 ){
+    function getPerUserClaimAmount(uint256 _conditionIndex)
+        public
+        override
+        returns (uint8, uint256)
+    {
         address payable userAddress = payable(msg.sender);
-        (uint8 winningSide,
-        uint256 userstake, 
-        uint256 totalWinnerRedeemable, 
-        uint256 platformFees) = calculateClaimAmount(_conditionIndex);
-        uint256 perBetAmount = (totalWinnerRedeemable - userstake)/userstake;
-        return(winningSide, perBetAmount);
-
+        (
+            uint8 winningSide,
+            uint256 userstake,
+            uint256 totalWinnerRedeemable,
+            uint256 platformFees
+        ) = calculateClaimAmount(_conditionIndex);
+        uint256 perBetAmount = (totalWinnerRedeemable - userstake) / userstake;
+        return (winningSide, perBetAmount);
     }
 
-    function calculateClaimAmount(uint256 _conditionIndex) public override 
-    returns (uint8 winningSide, uint256 userStake, uint256 totalWinnerRedeemable, uint256 platformFees) {
+    function calculateClaimAmount(uint256 _conditionIndex)
+        public
+        override
+        returns (
+            uint8 winningSide,
+            uint256 userStake,
+            uint256 totalWinnerRedeemable,
+            uint256 platformFees
+        )
+    {
         ConditionInfo storage conditionInfo = conditions[_conditionIndex];
         address payable userAddress = payable(msg.sender);
         BetToken lowBetToken = BetToken(conditionInfo.lowBetToken);
@@ -232,7 +244,7 @@ contract PredictionMarket is IPredictionMarket {
             lowBetToken.burnAll(userAddress);
 
             if (userStake == 0) {
-                return( 0, 0, 0, 0 );
+                return (0, 0, 0, 0);
             }
 
             (totalWinnerRedeemable, platformFees) = getClaimAmount(
@@ -240,7 +252,6 @@ contract PredictionMarket is IPredictionMarket {
                 conditionInfo.totalStakedAbove,
                 userStake
             );
-
         } else if (conditionInfo.settledPrice < conditionInfo.triggerPrice) {
             //Users who predicted below price wins
             winningSide = 0;
@@ -250,7 +261,7 @@ contract PredictionMarket is IPredictionMarket {
             lowBetToken.burnAll(userAddress);
 
             if (userStake == 0) {
-                return( 0, 0, 0, 0 );
+                return (0, 0, 0, 0);
             }
 
             (totalWinnerRedeemable, platformFees) = getClaimAmount(

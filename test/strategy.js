@@ -4,18 +4,19 @@ const { abi } = require("../artifacts/contracts/Strategy.sol/Strategy.json");
 const betTokenABI = require("../artifacts/contracts/mocks/BetToken.sol/BetToken.json");
 
 describe("Strategy", function () {
-  let trader1,
-    user1,
-    user2,
-    user3,
-    user4,
-    userInitFunds,
-    traderInitFund,
-    firstBetAmount,
-    totalFirstBetAmount,
-    totalUserFund,
-    secondBetAmount,
-    totalSecondBetAmount;
+  let trader1;
+  let  user1;
+  let  user2;
+  let  user3;
+  let  user4;
+  let  userInitFunds;
+  let  traderInitFund;
+  let  firstBetAmount;
+  let  totalFirstBetAmount;
+  let  totalUserFund;
+  let  secondBetAmount;
+  let  totalSecondBetAmount;
+  
   const DECIMALS = BigNumber.from(10).pow(18);
   const TRIGGER_VALUE = 60000000000;
   const SETTLEMENT_TIME = 60000000000;

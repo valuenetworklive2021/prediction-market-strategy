@@ -6,33 +6,6 @@ import "./interfaces/IPredictionMarket.sol";
 import "./Checkpoint.sol";
 
 contract Strategy is Checkpoint {
-    event StrategyFollowed(
-        address userFollowed,
-        uint256 userAmount,
-        address traderAddress,
-        address strategyAddress,
-        uint256 checkpointId
-    );
-    event StrategyUnfollowed(
-        address userUnFollowed,
-        uint256 userAmountClaimed,
-        address strategyAddress,
-        bool isFullClaim,
-        uint256 checkpointId
-    );
-    event BetPlaced(
-        uint256 conditionIndex,
-        uint8 side,
-        uint256 totalAmount,
-        uint256 checkpointId
-    );
-    event BetClaimed(
-        uint256 conditionIndex,
-        uint8 winningSide,
-        bool isWon,
-        uint256 totalAmount
-    );
-
     modifier isStrategyActive() {
         require(
             status == StrategyStatus.ACTIVE,
@@ -72,11 +45,11 @@ contract Strategy is Checkpoint {
         predictionMarket = IPredictionMarket(_predictionMarket);
         strategyName = _name;
         trader = _trader;
-        traderFund += msg.value;
-
+        traderFund = msg.value;
         status = StrategyStatus.ACTIVE;
     }
 
+    //TODO: if no bets applied in a checkpoint, just update the checkpoint instead of creating
     function follow() public payable isStrategyActive {
         User storage user = userInfo[msg.sender];
 
@@ -84,24 +57,47 @@ contract Strategy is Checkpoint {
         require(user.depositAmount == 0, "Strategy::follow: ALREADY_FOLLOWING");
 
         totalUserFunds += msg.value;
+        totalBetFunds += msg.value;
 
         user.depositAmount = msg.value;
         users.push(msg.sender);
+        uint256 index = users.length;
+        userAmounts[index - 1] = msg.value;
 
         //get total volume (trader + all users)
+        address[] memory _initialAmounts;
+        if (latestCheckpointId == 0) {
+            _initialAmounts = userAmounts;
+        } else {
+            _initialAmounts = checkpoints[latestCheckpointId - 1]
+                .userAmountAvailable;
+            _initialAmounts.push(msg.value);
+        }
         addCheckpoint(users, (totalUserFunds + traderFund));
         user.entryCheckpointId = latestCheckpointId;
 
-        emit StrategyFollowed(
-            msg.sender,
-            msg.value,
-            trader,
-            address(this),
-            latestCheckpointId
-        );
+        emit StrategyFollowed(msg.sender, msg.value, latestCheckpointId);
+    }
+
+    function _addUser(address _user) internal {
+        if (isUser[_user] == 0) {
+            users.push(_user);
+            isUser[_user] = users.length; // index plus one
+        }
+    }
+
+    function _removeUser(address _user) internal {
+        if (isUser[_user] > 0) {
+            uint256 index = isUser[_user] - 1;
+            isUser[_user] = 0;
+            isUser[users[users.length - 1]] = index + 1;
+            users[index] = users[users.length - 1];
+            users.pop();
+        }
     }
 
     //unfollow is subjected to fund availability
+    //TODO: decide add checkpoint params when a user is removed
     function unfollow() public onlyUser {
         User storage user = userInfo[msg.sender];
         user.exitCheckpointId = latestCheckpointId;
@@ -127,6 +123,7 @@ contract Strategy is Checkpoint {
             }
         }
         addCheckpoint(users, (totalUserFunds + traderFund));
+        bool isFullClaim = true;
 
         emit StrategyUnfollowed(
             msg.sender,
@@ -143,7 +140,7 @@ contract Strategy is Checkpoint {
     // add new checkpoint, pop the user from array, update userfund
     // update user(if any)
 
-    // for getting USer claim amount
+    // for getting User claim amount
     function getUserClaimAmount(User memory userDetails)
         internal
         view
@@ -153,12 +150,15 @@ contract Strategy is Checkpoint {
             uint256 userTotalLoss
         )
     {
+        Checkpoint memory cp;
         for (
             uint256 cpIndex = userDetails.entryCheckpointId;
             cpIndex < userDetails.exitCheckpointId;
             cpIndex++
         ) {
-            Checkpoint memory cp = checkpoints[cpIndex];
+            cp = checkpoints[cpIndex];
+
+            uint256 index = isUser[_user] - 1;
 
             uint256 userProfit = (cp.totalProfit * userDetails.depositAmount) /
                 cp.totalVolume;
@@ -223,16 +223,14 @@ contract Strategy is Checkpoint {
 
         require(users.length > 0, "Strategy::bet: NO USERS EXIST");
 
-        uint256 percentage = (_amount * 100) / traderFund;
+        uint256 percentage = (_amount * 1000000) / traderFund;
         require(
-            percentage < 5,
+            percentage < 50000,
             "Strategy::placeBet:INVALID AMOUNT. Percentage > 5"
         );
 
-        uint256 betAmount = ((percentage * totalUserFunds) / 100) + _amount;
-        Checkpoint storage checkpoint = checkpoints[latestCheckpointId - 1];
-        checkpoint.totalInvested += betAmount;
-        conditionIndexToCheckpoints[_conditionIndex].push(latestCheckpointId);
+        uint256 betAmount = _bet(latestCheckpointId, percentage);
+
         Market memory market;
         if (_side == 0) {
             market.lowBets = betAmount;
@@ -240,19 +238,22 @@ contract Strategy is Checkpoint {
             market.highBets = betAmount;
         }
         markets[latestCheckpointId][_conditionIndex] = market;
+        conditionIndexToCheckpoints[_conditionIndex].push(latestCheckpointId);
 
         predictionMarket.betOnCondition{value: betAmount}(
             _conditionIndex,
-            _side,
-            betAmount,
-            latestCheckpointId - 1
+            _side
         );
+
+        //event BetPlaced()
     }
 
-    function claim(uint256 _conditionIndex) public isStrategyActive onlyTrader {
+    function claim(uint256 _conditionIndex) public onlyTrader {
         (uint8 winningSide, uint256 perBetPrice) = predictionMarket
             .getPerUserClaimAmount(_conditionIndex);
         predictionMarket.claim(_conditionIndex);
+
+        isMarketSettled[_conditionIndex] = true;
 
         (
             ,
@@ -274,28 +275,7 @@ contract Strategy is Checkpoint {
         uint256[] memory checkpointList = conditionIndexToCheckpoints[
             _conditionIndex
         ];
-        for (uint256 index = 0; index < checkpointList.length; index++) {
-            Market memory market = markets[checkpointList[index]][
-                _conditionIndex
-            ];
-            Checkpoint memory cp = checkpoints[checkpointList[index]];
 
-            uint256 profit;
-            uint256 loss;
-
-            if (winningSide == 1 && market.highBets > 0) {
-                profit = market.highBets * perBetPrice;
-                loss = market.lowBets;
-            } else {
-                profit = market.lowBets * perBetPrice;
-                loss = market.highBets;
-            }
-
-            cp.totalProfit += profit;
-            cp.totalLoss += loss;
-
-            totalUserFunds = totalUserFunds + profit - loss;
-        }
         //add event
     }
 
@@ -332,9 +312,9 @@ contract Strategy is Checkpoint {
                 ,
 
             ) = (predictionMarket.conditions(condition[index]));
-            if (!isSettled) {
-                conditionStatus.push(condition[index]);
-            }
+            // if (!isSettled) {
+            //     conditionStatus.push(condition[index]);
+            // }
             //compare settlement time, push id in an array and return
         }
     }
