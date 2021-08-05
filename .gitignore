@@ -1,9 +1,12 @@
 node_modules
+package-lock.json
 
 #Hardhat files
 cache
 artifacts
 
+#Compiler files
+bin
 
 #IDE
 settings.json

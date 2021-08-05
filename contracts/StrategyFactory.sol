@@ -1,17 +1,29 @@
+//SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.0;
 
 import "./Strategy.sol";
 
 contract StrategyFactory {
     IPredictionMarket public predictionMarket;
-    uint256 public traderId;
+    uint256 public strategyID;
 
+    //strategyID -> strategy
+    mapping(uint256 => address) public strategies;
     mapping(address => uint256[]) public traderStrategies;
 
-    //event CreateStrategy (trader, id, amount)
+    event StartegyCreated(
+        address traderAddress,
+        string traderName,
+        uint256 id,
+        uint256 amount,
+        address strategyAddress
+    );
 
     constructor(address _predictionMarket) {
-        //check zero address
+        require(
+            _predictionMarket != address(0),
+            "StrategyFactory::constructor: INVALID_PREDICTION_MARKET_ADDRESS."
+        );
         predictionMarket = IPredictionMarket(_predictionMarket);
     }
 
@@ -22,21 +34,25 @@ contract StrategyFactory {
     {
         require(
             msg.value > 0,
-            "StrategyRegistry::createStrategy: ZERO_DEPOSIT_FUND"
+            "StrategyFactory::createStrategy: ZERO_DEPOSIT_FUND"
         );
 
-        traderId = traderId + 1;
-        traderStrategies[msg.sender].push(traderId);
+        strategyID = strategyID + 1;
+        traderStrategies[msg.sender].push(strategyID);
 
-        Strategy strategy = new Strategy(
-            _predictionMarket,
+        Strategy strategy = new Strategy{value: msg.value}(
+            address(predictionMarket),
             _name,
-            msg.sender
+            payable(msg.sender)
         );
-        strategy.addTraderFund{value: msg.value}();
+        strategies[strategyID] = address(strategy);
 
-        //emit event
-
-        return traderId;
+        emit StartegyCreated(
+            msg.sender,
+            _name,
+            strategyID,
+            msg.value,
+            address(strategy)
+        );
     }
 }
