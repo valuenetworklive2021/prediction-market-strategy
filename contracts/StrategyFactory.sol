@@ -27,11 +27,11 @@ contract StrategyFactory {
         predictionMarket = IPredictionMarket(_predictionMarket);
     }
 
-    function createStrategy(string memory _name)
-        external
-        payable
-        returns (uint256)
-    {
+    function createStrategy(
+        string memory _name,
+        uint256 _depositPeriod,
+        uint256 _tradingPeriod
+    ) external payable {
         require(
             msg.value > 0,
             "StrategyFactory::createStrategy: ZERO_DEPOSIT_FUND"
@@ -43,7 +43,9 @@ contract StrategyFactory {
         Strategy strategy = new Strategy{value: msg.value}(
             address(predictionMarket),
             _name,
-            payable(msg.sender)
+            payable(msg.sender),
+            _depositPeriod,
+            _tradingPeriod
         );
         strategies[strategyID] = address(strategy);
 
