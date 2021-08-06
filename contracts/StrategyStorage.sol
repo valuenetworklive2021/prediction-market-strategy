@@ -67,4 +67,7 @@ contract StrategyStorage {
         uint8 winningSide,
         uint256 amountReceived
     );
+    event StrategyInactive();
+    event TraderClaimed(uint256 amountClaimed);
+    event TraderFeeClaimed(uint256 traderFees);
 }
