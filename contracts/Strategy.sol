@@ -345,9 +345,10 @@ contract Strategy is StrategyStorage {
 
     function claimFees() external onlyTrader {
         require(!isFeeClaimed, "Strategy:claimFees:: ALREADY_CLAIMED");
+        isFeeClaimed = true;
         traderFees = getTraderFees();
-        trader.transfer(traderFees);
 
+        trader.transfer(traderFees);
         emit TraderFeeClaimed(traderFees);
     }
 }
