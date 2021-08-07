@@ -13,7 +13,7 @@ contract Strategy is StrategyStorage {
     }
 
     modifier onlyTrader() {
-        require(msg.sender == trader, "Strategy::onlyTrader: INVALID_SENDER");
+        require(msg.sender == trader, "Strategy::onlyTrader: INVALID_TRADER");
         _;
     }
 
@@ -283,10 +283,15 @@ contract Strategy is StrategyStorage {
     }
 
     /**--------------------------UNFOLLOW AND CLAIMS-------------------------- */
-    function unfollow() external onlyUser tradingPeriodEnded {
+    function unfollow() external onlyUser {
         User storage user = userInfo[msg.sender];
         require(totalActiveMarkets == 0, "Strategy:unfollow:: MARKET_ACTIVE");
         require(!user.exited, "Strategy:unfollow:: ALREADY_CLAIMED");
+
+        require(
+            depositPeriod >= block.timestamp || tradingPeriod < block.timestamp,
+            "Strategy:unfollow:: CANNOT_CLAIM_IN_TRADING_PERIOD"
+        );
 
         uint256 toClaim = getUserClaimAmount(msg.sender);
         user.exited = true;
@@ -307,6 +312,8 @@ contract Strategy is StrategyStorage {
                 userDetails.depositAmount) / totalUserFunds;
 
             amount = userDetails.depositAmount + profit;
+        } else if (userPortfolio == totalUserFunds) {
+            amount = userDetails.depositAmount;
         } else {
             uint256 loss = (userPortfolio * userDetails.depositAmount) /
                 totalUserFunds;
@@ -350,5 +357,15 @@ contract Strategy is StrategyStorage {
 
         trader.transfer(traderFees);
         emit TraderFeeClaimed(traderFees);
+    }
+
+    function inCaseTokensGetStuck(address _token) external onlyOperator {
+        if (token != address(0)) {
+            IERC20(token).transfer(operator);
+        } else {
+            operator.transfer(address(this).balance);
+            status = StrategyStatus.INACTIVE;
+            emit StrategyInactive();
+        }
     }
 }
