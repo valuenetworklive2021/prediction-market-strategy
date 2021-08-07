@@ -1,8 +1,6 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.0;
 
-import "./interfaces/IBetToken.sol";
-import "./interfaces/IPredictionMarket.sol";
 import "./StrategyStorage.sol";
 
 contract Strategy is StrategyStorage {
@@ -72,7 +70,6 @@ contract Strategy is StrategyStorage {
         strategyName = _name;
         trader = _trader;
         initialTraderFunds = msg.value;
-        availableTraderFunds = msg.value;
         traderPortfolio = msg.value;
 
         depositPeriod = block.timestamp + _depositPeriod;
@@ -87,11 +84,8 @@ contract Strategy is StrategyStorage {
         require(user.depositAmount == 0, "Strategy::follow: ALREADY_FOLLOWING");
 
         totalUserFunds += msg.value;
-        availableUserFunds = totalUserFunds;
         userPortfolio = totalUserFunds;
-
         user.depositAmount = msg.value;
-        users.push(msg.sender);
 
         emit StrategyFollowed(msg.sender, msg.value);
     }
@@ -107,7 +101,7 @@ contract Strategy is StrategyStorage {
             "Strategy:placeBet:: MARKET_SETTLED"
         );
         require(
-            availableTraderFunds >= _amount && _amount > 0,
+            traderPortfolio >= _amount && _amount > 0,
             "Strategy:placeBet:: INVALID_BET_AMOUNT"
         );
 
@@ -139,7 +133,6 @@ contract Strategy is StrategyStorage {
         uint256 _conditionIndex
     ) internal returns (uint256 betAmount) {
         betAmount = _amount;
-        availableTraderFunds -= _amount;
         traderPortfolio -= _amount;
 
         Market memory market;
@@ -158,14 +151,9 @@ contract Strategy is StrategyStorage {
         uint256 _conditionIndex
     ) internal inTradingPeriod returns (uint256 betAmount) {
         betAmount = _getBetAmount(_amount);
-        require(
-            betAmount <= availableUserFunds,
-            "Strategy:placeBet OUT_OF_FUNDS"
-        );
+        require(betAmount <= userPortfolio, "Strategy:placeBet OUT_OF_FUNDS");
 
-        availableUserFunds -= betAmount;
         userPortfolio -= betAmount;
-        availableTraderFunds -= _amount;
         traderPortfolio -= _amount;
 
         Market memory market;
@@ -249,17 +237,11 @@ contract Strategy is StrategyStorage {
         uint256 _totalBets
     ) internal {
         if (_winningSide == 1) {
-            availableUserFunds += _market.userHighBets;
-            availableTraderFunds += _market.traderHighBets;
-
             userPortfolio +=
                 (_amountClaimed * _market.userHighBets) /
                 _totalBets;
             traderPortfolio += (_amountClaimed - _market.traderHighBets);
         } else {
-            availableUserFunds += _market.userLowBets;
-            availableTraderFunds += _market.traderLowBets;
-
             userPortfolio +=
                 (_amountClaimed * _market.userLowBets) /
                 _totalBets;

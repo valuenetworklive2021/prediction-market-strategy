@@ -35,9 +35,6 @@ contract StrategyStorage {
 
     uint256 totalActiveMarkets;
     uint256 public totalUserFunds;
-    uint256 public availableUserFunds;
-    uint256 public availableTraderFunds;
-
     struct User {
         uint256 depositAmount;
         uint256 claimedAmount;
@@ -53,8 +50,7 @@ contract StrategyStorage {
         uint256 amountClaimed;
     }
 
-    //user details
-    address[] public users;
+    //user details]
     mapping(address => User) public userInfo;
     mapping(uint256 => Market) public markets;
     mapping(uint256 => bool) public isBetPlaced;
