@@ -2,19 +2,22 @@
 pragma solidity 0.8.0;
 
 import "./interfaces/IPredictionMarket.sol";
+import "./interfaces/IStrategyFactory.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract StrategyStorage {
     //strategy details
     StrategyStatus public status;
-    IPredictionMarket public predictionMarket;
+    IStrategyFactory public strategyFactory;
 
     uint256 internal constant PERCENTAGE_MULTIPLIER = 10000;
     uint256 internal constant MAX_BET_PERCENTAGE = 50000;
 
     string public strategyName;
     address payable public trader;
+    address payable public operator;
     uint256 public initialTraderFunds;
-    uint256 public amountClaimed;
+    uint256 public traderClaimedAmount;
 
     uint256 public userPortfolio;
     uint256 public traderPortfolio;
@@ -24,7 +27,7 @@ contract StrategyStorage {
 
     //Fees Percentage
     //PERCENTAGE_MULTIPLIER decimals
-    uint256 public feePercentage;
+    uint256 public constant FEE_PERCENTAGE = 2000; // 20%
     uint256 public traderFees;
     bool isFeeClaimed;
 
@@ -33,7 +36,8 @@ contract StrategyStorage {
         INACTIVE
     }
 
-    uint256 totalActiveMarkets;
+    uint256 public totalUserActiveMarkets;
+    uint256 public totalTraderActiveMarkets;
     uint256 public totalUserFunds;
     struct User {
         uint256 depositAmount;
@@ -51,12 +55,19 @@ contract StrategyStorage {
     }
 
     //user details]
+    uint256 public totalUsers;
     mapping(address => User) public userInfo;
     mapping(uint256 => Market) public markets;
-    mapping(uint256 => bool) public isBetPlaced;
+    //conditionIndex -> 1 -> users
+    //conditionIndex -> 0 -> trader
+    mapping(uint256 => mapping(uint8 => bool)) public isBetPlaced;
 
     event StrategyFollowed(address follower, uint256 amount);
-    event StrategyUnfollowed(address follower, uint256 amountClaimed);
+    event StrategyUnfollowed(
+        address follower,
+        uint256 amountClaimed,
+        string unfollowType
+    );
     event BetPlaced(uint256 conditionIndex, uint8 side, uint256 totalAmount);
     event BetClaimed(
         uint256 conditionIndex,
@@ -66,4 +77,5 @@ contract StrategyStorage {
     event StrategyInactive();
     event TraderClaimed(uint256 amountClaimed);
     event TraderFeeClaimed(uint256 traderFees);
+    event AddedTraderFunds(address trader, uint256 amount);
 }

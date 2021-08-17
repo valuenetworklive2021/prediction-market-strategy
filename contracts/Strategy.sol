@@ -50,27 +50,25 @@ contract Strategy is StrategyStorage {
     }
 
     constructor(
-        address _predictionMarket,
         string memory _name,
         address payable _trader,
         uint256 _depositPeriod, //time remaining from now
-        uint256 _tradingPeriod //deposit time + trading period
+        uint256 _tradingPeriod, //deposit time + trading period
+        address payable _operator
     ) payable {
         require(
             _trader != address(0),
             "Strategy::constructor:INVALID TRADER ADDRESS."
         );
-        require(
-            _predictionMarket != address(0),
-            "Strategy::constructor:INVALID PREDICTION MARKET ADDRESS."
-        );
+
         require(msg.value > 0, "Strategy::constructor: ZERO_FUNDS");
 
-        predictionMarket = IPredictionMarket(_predictionMarket);
+        strategyFactory = IStrategyFactory(msg.sender);
         strategyName = _name;
         trader = _trader;
         initialTraderFunds = msg.value;
         traderPortfolio = msg.value;
+        operator = _operator;
 
         depositPeriod = block.timestamp + _depositPeriod;
         tradingPeriod = depositPeriod + _tradingPeriod;
@@ -84,10 +82,25 @@ contract Strategy is StrategyStorage {
         require(user.depositAmount == 0, "Strategy::follow: ALREADY_FOLLOWING");
 
         totalUserFunds += msg.value;
+        totalUsers++;
         userPortfolio = totalUserFunds;
         user.depositAmount = msg.value;
 
         emit StrategyFollowed(msg.sender, msg.value);
+    }
+
+    function deposit()
+        external
+        payable
+        isStrategyActive
+        inDepositPeriod
+        onlyTrader
+    {
+        require(msg.value > 0, "Strategy::deposit: ZERO_FUNDS");
+
+        initialTraderFunds += msg.value;
+        traderPortfolio += msg.value;
+        emit AddedTraderFunds(msg.sender, msg.value);
     }
 
     /**--------------------------BET PLACE RELATED FUNCTIONS-------------------------- */
@@ -114,17 +127,29 @@ contract Strategy is StrategyStorage {
             betAmount = _betInDepositPeriod(_amount, _side, _conditionIndex);
         }
 
-        if (!isBetPlaced[_conditionIndex]) {
-            isBetPlaced[_conditionIndex] = true;
-            totalActiveMarkets++;
-        }
-
-        predictionMarket.betOnCondition{value: betAmount}(
+        _getPredictionMarket().betOnCondition{value: betAmount}(
             _conditionIndex,
             _side
         );
 
         emit BetPlaced(_conditionIndex, _side, betAmount);
+    }
+
+    //0 - deposit and claiming period
+    //1 - trading
+    function _updateActiveMarkets(uint256 _conditionIndex, uint8 _scenario)
+        internal
+    {
+        if (_scenario == 1) {
+            if (!isBetPlaced[_conditionIndex][1]) {
+                isBetPlaced[_conditionIndex][1] = true;
+                totalUserActiveMarkets++;
+            }
+        }
+        if (!isBetPlaced[_conditionIndex][0]) {
+            isBetPlaced[_conditionIndex][0] = true;
+            totalTraderActiveMarkets++;
+        }
     }
 
     function _betInDepositPeriod(
@@ -135,14 +160,14 @@ contract Strategy is StrategyStorage {
         betAmount = _amount;
         traderPortfolio -= _amount;
 
-        Market memory market;
+        Market storage market = markets[_conditionIndex];
         if (_side == 0) {
             market.traderLowBets += _amount;
         } else {
             market.traderHighBets += _amount;
         }
 
-        markets[_conditionIndex] = market;
+        _updateActiveMarkets(_conditionIndex, 0);
     }
 
     function _betInTradingPeriod(
@@ -156,7 +181,7 @@ contract Strategy is StrategyStorage {
         userPortfolio -= betAmount;
         traderPortfolio -= _amount;
 
-        Market memory market;
+        Market storage market = markets[_conditionIndex];
         if (_side == 0) {
             market.userLowBets += betAmount;
             market.traderLowBets += _amount;
@@ -165,7 +190,7 @@ contract Strategy is StrategyStorage {
             market.traderHighBets += _amount;
         }
 
-        markets[_conditionIndex] = market;
+        _updateActiveMarkets(_conditionIndex, 1);
         betAmount += _amount;
     }
 
@@ -192,15 +217,16 @@ contract Strategy is StrategyStorage {
         view
         returns (uint256 percentage)
     {
-        percentage =
-            (_amount * 100 * PERCENTAGE_MULTIPLIER) /
-            initialTraderFunds;
+        percentage = (_amount * 100 * PERCENTAGE_MULTIPLIER) / traderPortfolio;
     }
 
     /**--------------------------BET CLAIM RELATED FUNCTIONS-------------------------- */
     function claimBet(uint256 _conditionIndex) external {
         Market storage market = markets[_conditionIndex];
-
+        require(
+            isBetPlaced[_conditionIndex][0] || isBetPlaced[_conditionIndex][1],
+            "Strategy:claimBet:: NO_BETS"
+        );
         require(
             _isMarketSettled(_conditionIndex),
             "Strategy:claimBet:: MARKET_ACTIVE"
@@ -211,61 +237,63 @@ contract Strategy is StrategyStorage {
         uint256 totalHighBets = market.userHighBets + market.traderHighBets;
         if (totalLowBets == 0 && totalHighBets == 0) return;
 
-        totalActiveMarkets--;
+        if (isBetPlaced[_conditionIndex][1]) totalUserActiveMarkets--;
+        totalTraderActiveMarkets--;
+        market.isClaimed = true;
 
         uint256 initialAmount = address(this).balance;
-        predictionMarket.claim(_conditionIndex);
-        uint256 finalAmount = address(this).balance;
-        uint256 amountClaimed = 0;
-        if (finalAmount != initialAmount)
-            amountClaimed = finalAmount - initialAmount;
+        _getPredictionMarket().claim(_conditionIndex);
+        market.amountClaimed = address(this).balance - initialAmount;
 
-        market.isClaimed = true;
-        market.amountClaimed = amountClaimed;
         uint8 winningSide = _getWinningSide(_conditionIndex);
 
-        uint256 totalBets = winningSide == 1 ? totalHighBets : totalLowBets;
-        _updatePortfolio(market, amountClaimed, winningSide, totalBets);
+        uint256 userClaim;
+        if (winningSide == 1) {
+            userClaim = _updatePortfolio(
+                market.amountClaimed,
+                totalHighBets,
+                market.userHighBets
+            );
+        } else {
+            userClaim = _updatePortfolio(
+                market.amountClaimed,
+                totalLowBets,
+                market.userLowBets
+            );
+        }
 
-        emit BetClaimed(_conditionIndex, winningSide, market.amountClaimed);
+        emit BetClaimed(_conditionIndex, winningSide, userClaim);
     }
 
     function _updatePortfolio(
-        Market memory _market,
         uint256 _amountClaimed,
-        uint8 _winningSide,
-        uint256 _totalBets
-    ) internal {
-        if (_winningSide == 1) {
-            userPortfolio +=
-                (_amountClaimed * _market.userHighBets) /
-                _totalBets;
-            traderPortfolio += (_amountClaimed - _market.traderHighBets);
-        } else {
-            userPortfolio +=
-                (_amountClaimed * _market.userLowBets) /
-                _totalBets;
-            traderPortfolio += (_amountClaimed - _market.traderLowBets);
-        }
+        uint256 _totalBets,
+        uint256 _userBets
+    ) internal returns (uint256 userClaim) {
+        if (_totalBets == 0) return 0;
+        userClaim = (_amountClaimed * _userBets) / _totalBets;
+        userPortfolio += userClaim;
+        traderPortfolio += (_amountClaimed - userClaim);
+    }
+
+    function _getPredictionMarket()
+        internal
+        returns (IPredictionMarket predictionMarket)
+    {
+        predictionMarket = IPredictionMarket(
+            strategyFactory.predictionMarket()
+        );
     }
 
     /**--------------------------MARKET RELATED VIEW FUNCTIONS-------------------------- */
-    function _isMarketSettled(uint256 _conditionIndex)
-        internal
-        view
-        returns (bool)
-    {
-        (, , , uint256 settlementTime, , , , , , ) = predictionMarket
+    function _isMarketSettled(uint256 _conditionIndex) internal returns (bool) {
+        (, , , uint256 settlementTime, , , , , , ) = _getPredictionMarket()
             .conditions(_conditionIndex);
         if (settlementTime > block.timestamp) return false;
         return true;
     }
 
-    function _getWinningSide(uint256 _conditionIndex)
-        internal
-        view
-        returns (uint8)
-    {
+    function _getWinningSide(uint256 _conditionIndex) internal returns (uint8) {
         (
             ,
             ,
@@ -277,28 +305,52 @@ contract Strategy is StrategyStorage {
             ,
             ,
 
-        ) = predictionMarket.conditions(_conditionIndex);
+        ) = _getPredictionMarket().conditions(_conditionIndex);
         if (triggerPrice >= settledPrice) return 0;
         return 1;
     }
 
     /**--------------------------UNFOLLOW AND CLAIMS-------------------------- */
     function unfollow() external onlyUser {
-        User storage user = userInfo[msg.sender];
-        require(totalActiveMarkets == 0, "Strategy:unfollow:: MARKET_ACTIVE");
-        require(!user.exited, "Strategy:unfollow:: ALREADY_CLAIMED");
-
         require(
             depositPeriod >= block.timestamp || tradingPeriod < block.timestamp,
             "Strategy:unfollow:: CANNOT_CLAIM_IN_TRADING_PERIOD"
         );
+
+        if (depositPeriod >= block.timestamp) {
+            _returnUserFunds();
+        } else {
+            _unfollow();
+        }
+    }
+
+    function _returnUserFunds() internal {
+        User storage user = userInfo[msg.sender];
+        require(user.depositAmount != 0, "Strategy:unfollow:: ALREADY_CLAIMED");
+
+        uint256 toClaim = getUserClaimAmount(msg.sender);
+        totalUserFunds -= user.depositAmount;
+        userPortfolio = totalUserFunds;
+        user.depositAmount = 0;
+
+        payable(msg.sender).transfer(toClaim);
+        emit StrategyUnfollowed(msg.sender, toClaim, "BEFORE_TRADE");
+    }
+
+    function _unfollow() internal {
+        require(
+            totalUserActiveMarkets == 0,
+            "Strategy:unfollow:: MARKET_ACTIVE"
+        );
+        User storage user = userInfo[msg.sender];
+        require(!user.exited, "Strategy:unfollow:: ALREADY_CLAIMED");
 
         uint256 toClaim = getUserClaimAmount(msg.sender);
         user.exited = true;
         user.claimedAmount = toClaim;
         payable(msg.sender).transfer(toClaim);
 
-        emit StrategyUnfollowed(msg.sender, toClaim);
+        emit StrategyUnfollowed(msg.sender, toClaim, "AFTER_TRADE");
     }
 
     function getUserClaimAmount(address _user)
@@ -325,32 +377,36 @@ contract Strategy is StrategyStorage {
     function getTraderFees() public view returns (uint256 fees) {
         fees = 0;
         if (userPortfolio > totalUserFunds) {
-            fees = (userPortfolio * feePercentage) / PERCENTAGE_MULTIPLIER;
+            fees = (userPortfolio * FEE_PERCENTAGE) / PERCENTAGE_MULTIPLIER;
         }
     }
 
     function removeTraderFund() external tradingPeriodEnded onlyTrader {
         require(
-            totalActiveMarkets == 0,
+            totalTraderActiveMarkets == 0,
             "Strategy:removeTraderFund:: MARKET_ACTIVE"
         );
         require(
-            amountClaimed == 0,
+            traderClaimedAmount == 0,
             "Strategy:removeTraderFund:: ALREADY_CLAIMED"
         );
-        amountClaimed = traderPortfolio;
+        traderClaimedAmount = traderPortfolio;
         traderPortfolio = 0;
         initialTraderFunds = 0;
 
         status = StrategyStatus.INACTIVE;
 
-        trader.transfer(amountClaimed);
+        trader.transfer(traderClaimedAmount);
 
         emit StrategyInactive();
-        emit TraderClaimed(amountClaimed);
+        emit TraderClaimed(traderClaimedAmount);
     }
 
     function claimFees() external onlyTrader {
+        require(
+            totalUserActiveMarkets == 0,
+            "Strategy:removeTraderFund:: MARKET_ACTIVE"
+        );
         require(!isFeeClaimed, "Strategy:claimFees:: ALREADY_CLAIMED");
         isFeeClaimed = true;
         traderFees = getTraderFees();
@@ -359,13 +415,25 @@ contract Strategy is StrategyStorage {
         emit TraderFeeClaimed(traderFees);
     }
 
-    function inCaseTokensGetStuck(address _token) external onlyOperator {
-        if (token != address(0)) {
-            IERC20(token).transfer(operator);
+    function inCaseTokensGetStuck(address _token) external {
+        require(
+            operator == msg.sender,
+            "Strategy:inCaseTokensGetStuck:: INVALID_OPERATOR"
+        );
+        if (_token != address(0)) {
+            IERC20 token = IERC20(_token);
+            token.transfer(operator, token.balanceOf(address(this)));
         } else {
             operator.transfer(address(this).balance);
             status = StrategyStatus.INACTIVE;
             emit StrategyInactive();
         }
+    }
+
+    receive() external payable {
+        require(
+            address(_getPredictionMarket()) == msg.sender,
+            "Strategy:receive:: INVALID_ETH_SOURCE"
+        );
     }
 }

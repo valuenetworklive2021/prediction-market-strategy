@@ -5,6 +5,7 @@ import "./Strategy.sol";
 
 contract StrategyFactory {
     IPredictionMarket public predictionMarket;
+    address payable public operator;
     uint256 public strategyID;
 
     //strategyID -> strategy
@@ -13,7 +14,7 @@ contract StrategyFactory {
 
     event StartegyCreated(
         address traderAddress,
-        string traderName,
+        string strategyName,
         uint256 id,
         uint256 amount,
         address strategyAddress
@@ -25,6 +26,7 @@ contract StrategyFactory {
             "StrategyFactory::constructor: INVALID_PREDICTION_MARKET_ADDRESS."
         );
         predictionMarket = IPredictionMarket(_predictionMarket);
+        operator = payable(msg.sender);
     }
 
     function createStrategy(
@@ -41,11 +43,11 @@ contract StrategyFactory {
         traderStrategies[msg.sender].push(strategyID);
 
         Strategy strategy = new Strategy{value: msg.value}(
-            address(predictionMarket),
             _name,
             payable(msg.sender),
             _depositPeriod,
-            _tradingPeriod
+            _tradingPeriod,
+            operator
         );
         strategies[strategyID] = address(strategy);
 
