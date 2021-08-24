@@ -278,6 +278,7 @@ contract Strategy is StrategyStorage {
 
     function _getPredictionMarket()
         internal
+        view
         returns (IPredictionMarket predictionMarket)
     {
         predictionMarket = IPredictionMarket(
@@ -286,14 +287,22 @@ contract Strategy is StrategyStorage {
     }
 
     /**--------------------------MARKET RELATED VIEW FUNCTIONS-------------------------- */
-    function _isMarketSettled(uint256 _conditionIndex) internal returns (bool) {
+    function _isMarketSettled(uint256 _conditionIndex)
+        internal
+        view
+        returns (bool)
+    {
         (, , , uint256 settlementTime, , , , , , ) = _getPredictionMarket()
             .conditions(_conditionIndex);
         if (settlementTime > block.timestamp) return false;
         return true;
     }
 
-    function _getWinningSide(uint256 _conditionIndex) internal returns (uint8) {
+    function _getWinningSide(uint256 _conditionIndex)
+        internal
+        view
+        returns (uint8)
+    {
         (
             ,
             ,
@@ -396,23 +405,34 @@ contract Strategy is StrategyStorage {
 
         status = StrategyStatus.INACTIVE;
 
-        trader.transfer(traderClaimedAmount);
+        _claimFee();
+        _transferETH(trader, traderFees + traderClaimedAmount);
 
         emit StrategyInactive();
+        emit TraderFeeClaimed(traderFees);
         emit TraderClaimed(traderClaimedAmount);
     }
 
-    function claimFees() external onlyTrader {
-        require(
-            totalUserActiveMarkets == 0,
-            "Strategy:removeTraderFund:: MARKET_ACTIVE"
-        );
+    // function claimFees() public onlyTrader {
+    //     require(
+    //         totalUserActiveMarkets == 0,
+    //         "Strategy:removeTraderFund:: MARKET_ACTIVE"
+    //     );
+    //     _claimFee();
+    // }
+
+    function _claimFee() internal {
         require(!isFeeClaimed, "Strategy:claimFees:: ALREADY_CLAIMED");
         isFeeClaimed = true;
         traderFees = getTraderFees();
+    }
 
-        trader.transfer(traderFees);
-        emit TraderFeeClaimed(traderFees);
+    function _transferETH(address payable _to, uint256 _amount) internal {
+        require(
+            address(this).balance >= _amount,
+            "Strategy:_transferETH:: AMOUNT_EXCEED_STRATEGY_BALANCE"
+        );
+        _to.transfer(_amount);
     }
 
     function inCaseTokensGetStuck(address _token) external {
