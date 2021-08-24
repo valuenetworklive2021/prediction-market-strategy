@@ -1,7 +1,250 @@
+// File: contracts/interfaces/IPredictionMarket.sol
+
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.0;
 
-import "./StrategyStorage.sol";
+interface IPredictionMarket {
+    function conditions(uint256 _index)
+        external
+        view
+        returns (
+            string memory market,
+            address oracle,
+            int256 triggerPrice,
+            uint256 settlementTime,
+            bool isSettled,
+            int256 settledPrice,
+            address lowBetToken,
+            address highBetToken,
+            uint256 totalStakedAbove,
+            uint256 totalStakedBelow
+        );
+
+    function prepareCondition(
+        address _oracle,
+        uint256 _settlementTime,
+        int256 _triggerPrice,
+        string memory _market
+    ) external;
+
+    function probabilityRatio(uint256 _conditionIndex)
+        external
+        view
+        returns (uint256 aboveProbabilityRatio, uint256 belowProbabilityRatio);
+
+    function userTotalETHStaked(uint256 _conditionIndex, address userAddress)
+        external
+        view
+        returns (uint256 totalEthStaked);
+
+    function betOnCondition(uint256 _conditionIndex, uint8 _prediction)
+        external
+        payable;
+
+    function settleCondition(uint256 _conditionIndex) external;
+
+    function claim(uint256 _conditionIndex) external;
+
+    function calculateClaimAmount(uint256 _conditionIndex)
+        external
+        returns (
+            uint8 winningSide,
+            uint256 userstake,
+            uint256 totalWinnerRedeemable,
+            uint256 platformFees
+        );
+
+    function getPerUserClaimAmount(uint256 _conditionIndex)
+        external
+        returns (uint8, uint256);
+
+    function getBalance(uint256 _conditionIndex, address _user)
+        external
+        view
+        returns (uint256 LBTBalance, uint256 HBTBalance);
+}
+
+// File: contracts/interfaces/IStrategyFactory.sol
+
+pragma solidity 0.8.0;
+
+interface IStrategyFactory {
+    function predictionMarket() external view returns (address);
+}
+
+// File: @openzeppelin/contracts/token/ERC20/IERC20.sol
+
+pragma solidity ^0.8.0;
+
+/**
+ * @dev Interface of the ERC20 standard as defined in the EIP.
+ */
+interface IERC20 {
+    /**
+     * @dev Returns the amount of tokens in existence.
+     */
+    function totalSupply() external view returns (uint256);
+
+    /**
+     * @dev Returns the amount of tokens owned by `account`.
+     */
+    function balanceOf(address account) external view returns (uint256);
+
+    /**
+     * @dev Moves `amount` tokens from the caller's account to `recipient`.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transfer(address recipient, uint256 amount)
+        external
+        returns (bool);
+
+    /**
+     * @dev Returns the remaining number of tokens that `spender` will be
+     * allowed to spend on behalf of `owner` through {transferFrom}. This is
+     * zero by default.
+     *
+     * This value changes when {approve} or {transferFrom} are called.
+     */
+    function allowance(address owner, address spender)
+        external
+        view
+        returns (uint256);
+
+    /**
+     * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * IMPORTANT: Beware that changing an allowance with this method brings the risk
+     * that someone may use both the old and the new allowance by unfortunate
+     * transaction ordering. One possible solution to mitigate this race
+     * condition is to first reduce the spender's allowance to 0 and set the
+     * desired value afterwards:
+     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
+     *
+     * Emits an {Approval} event.
+     */
+    function approve(address spender, uint256 amount) external returns (bool);
+
+    /**
+     * @dev Moves `amount` tokens from `sender` to `recipient` using the
+     * allowance mechanism. `amount` is then deducted from the caller's
+     * allowance.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transferFrom(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) external returns (bool);
+
+    /**
+     * @dev Emitted when `value` tokens are moved from one account (`from`) to
+     * another (`to`).
+     *
+     * Note that `value` may be zero.
+     */
+    event Transfer(address indexed from, address indexed to, uint256 value);
+
+    /**
+     * @dev Emitted when the allowance of a `spender` for an `owner` is set by
+     * a call to {approve}. `value` is the new allowance.
+     */
+    event Approval(
+        address indexed owner,
+        address indexed spender,
+        uint256 value
+    );
+}
+
+// File: contracts/StrategyStorage.sol
+
+pragma solidity 0.8.0;
+
+contract StrategyStorage {
+    //strategy details
+    StrategyStatus public status;
+    IStrategyFactory public strategyFactory;
+
+    uint256 internal constant PERCENTAGE_MULTIPLIER = 10000;
+    uint256 internal constant MAX_BET_PERCENTAGE = 50000;
+
+    string public strategyName;
+    address payable public trader;
+    address payable public operator;
+    uint256 public initialTraderFunds;
+    uint256 public traderClaimedAmount;
+
+    uint256 public userPortfolio;
+    uint256 public traderPortfolio;
+
+    uint256 public depositPeriod;
+    uint256 public tradingPeriod;
+
+    //Fees Percentage
+    //PERCENTAGE_MULTIPLIER decimals
+    uint256 public constant FEE_PERCENTAGE = 2000; // 20%
+    uint256 public traderFees;
+    bool isFeeClaimed;
+
+    enum StrategyStatus {
+        ACTIVE,
+        INACTIVE
+    }
+
+    uint256 public totalUserActiveMarkets;
+    uint256 public totalTraderActiveMarkets;
+    uint256 public totalUserFunds;
+    struct User {
+        uint256 depositAmount;
+        uint256 claimedAmount;
+        bool exited;
+    }
+
+    struct Market {
+        uint256 userLowBets;
+        uint256 userHighBets;
+        uint256 traderLowBets;
+        uint256 traderHighBets;
+        bool isClaimed;
+        uint256 amountClaimed;
+    }
+
+    //user details]
+    uint256 public totalUsers;
+    mapping(address => User) public userInfo;
+    mapping(uint256 => Market) public markets;
+    //conditionIndex -> 1 -> users
+    //conditionIndex -> 0 -> trader
+    mapping(uint256 => mapping(uint8 => bool)) public isBetPlaced;
+
+    event StrategyFollowed(address follower, uint256 amount);
+    event StrategyUnfollowed(
+        address follower,
+        uint256 amountClaimed,
+        string unfollowType
+    );
+    event BetPlaced(uint256 conditionIndex, uint8 side, uint256 totalAmount);
+    event BetClaimed(
+        uint256 conditionIndex,
+        uint8 winningSide,
+        uint256 amountReceived
+    );
+    event StrategyInactive();
+    event TraderClaimed(uint256 amountClaimed);
+    event TraderFeeClaimed(uint256 traderFees);
+    event AddedTraderFunds(address trader, uint256 amount);
+}
+
+// File: contracts/Strategy.sol
+
+pragma solidity 0.8.0;
 
 contract Strategy is StrategyStorage {
     modifier isStrategyActive() {
@@ -454,6 +697,83 @@ contract Strategy is StrategyStorage {
         require(
             address(_getPredictionMarket()) == msg.sender,
             "Strategy:receive:: INVALID_ETH_SOURCE"
+        );
+    }
+}
+
+// File: contracts/StrategyFactory.sol
+
+pragma solidity 0.8.0;
+
+contract StrategyFactory {
+    address public predictionMarket;
+    address payable public operator;
+    uint256 public strategyID;
+
+    //strategyID -> strategy
+    mapping(uint256 => address) public strategies;
+    mapping(address => uint256[]) public traderStrategies;
+    mapping(address => bool) public isStrategy;
+
+    event StartegyCreated(
+        address traderAddress,
+        string strategyName,
+        uint256 id,
+        uint256 amount,
+        address strategyAddress
+    );
+
+    constructor(address _predictionMarket) {
+        require(
+            _predictionMarket != address(0),
+            "StrategyFactory::constructor: INVALID_PREDICTION_MARKET_ADDRESS."
+        );
+        predictionMarket = _predictionMarket;
+        operator = payable(msg.sender);
+    }
+
+    function updatePredictionMarket(address _predictionMarket) external {
+        require(
+            msg.sender == operator,
+            "StrategyFactory:updatePredictionMarket:: INVALID_SENDER"
+        );
+        require(
+            _predictionMarket != address(0) ||
+                _predictionMarket != predictionMarket,
+            "StrategyFactory:updatePredictionMarket:: INVALID_ADDRESS"
+        );
+        predictionMarket = _predictionMarket;
+    }
+
+    function createStrategy(
+        string memory _name,
+        uint256 _depositPeriod,
+        uint256 _tradingPeriod
+    ) external payable {
+        require(
+            msg.value > 0,
+            "StrategyFactory::createStrategy: ZERO_DEPOSIT_FUND"
+        );
+
+        strategyID = strategyID + 1;
+        traderStrategies[msg.sender].push(strategyID);
+
+        Strategy strategy = new Strategy{value: msg.value}(
+            _name,
+            payable(msg.sender),
+            _depositPeriod,
+            _tradingPeriod,
+            operator
+        );
+        strategies[strategyID] = address(strategy);
+        isStrategy[address(strategy)] = true;
+
+        emit StartegyCreated(
+            msg.sender,
+            _name,
+            strategyID,
+            msg.value,
+            address(strategy)
         );
     }
 }
