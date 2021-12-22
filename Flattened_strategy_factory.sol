@@ -1,6 +1,4 @@
-// File: contracts/interfaces/IPredictionMarket.sol
-
-//SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.0;
 
 interface IPredictionMarket {
@@ -64,17 +62,17 @@ interface IPredictionMarket {
         returns (uint256 LBTBalance, uint256 HBTBalance);
 }
 
-// File: contracts/interfaces/IStrategyFactory.sol
-
-pragma solidity 0.8.0;
+// File contracts/interfaces/IStrategyFactory.sol
 
 interface IStrategyFactory {
     function predictionMarket() external view returns (address);
+
+    function maxBetPercentage() external view returns (uint256);
 }
 
-// File: @openzeppelin/contracts/token/ERC20/IERC20.sol
+// File @openzeppelin/contracts/token/ERC20/IERC20.sol@v4.4.1
 
-pragma solidity ^0.8.0;
+// OpenZeppelin Contracts v4.4.1 (token/ERC20/IERC20.sol)
 
 /**
  * @dev Interface of the ERC20 standard as defined in the EIP.
@@ -163,9 +161,7 @@ interface IERC20 {
     );
 }
 
-// File: contracts/StrategyStorage.sol
-
-pragma solidity 0.8.0;
+// File contracts/StrategyStorage.sol
 
 contract StrategyStorage {
     //strategy details
@@ -173,7 +169,6 @@ contract StrategyStorage {
     IStrategyFactory public strategyFactory;
 
     uint256 internal constant PERCENTAGE_MULTIPLIER = 10000;
-    uint256 internal constant MAX_BET_PERCENTAGE = 50000;
 
     string public strategyName;
     address payable public trader;
@@ -242,9 +237,7 @@ contract StrategyStorage {
     event AddedTraderFunds(address trader, uint256 amount);
 }
 
-// File: contracts/Strategy.sol
-
-pragma solidity 0.8.0;
+// File contracts/Strategy.sol
 
 contract Strategy is StrategyStorage {
     modifier isStrategyActive() {
@@ -444,8 +437,8 @@ contract Strategy is StrategyStorage {
     {
         uint256 percentage = _getPercentage(_amount);
         require(
-            percentage < MAX_BET_PERCENTAGE,
-            "Strategy::placeBet:: AMOUNT_EXCEEDS_5_PERCENTAGE"
+            percentage < strategyFactory.maxBetPercentage(),
+            "Strategy::placeBet:: AMOUNT_EXCEEDS_MAX_BET_PERCENTAGE"
         );
         betAmount =
             (totalUserFunds * percentage) /
@@ -701,14 +694,14 @@ contract Strategy is StrategyStorage {
     }
 }
 
-// File: contracts/StrategyFactory.sol
-
-pragma solidity 0.8.0;
+// File contracts/StrategyFactory.sol
 
 contract StrategyFactory {
     address public predictionMarket;
     address payable public operator;
     uint256 public strategyID;
+    uint256 public maxBetPercentage = 200000;
+    uint256 public constant PERCENTAGE_MULTIPLIER = 10000;
 
     //strategyID -> strategy
     mapping(uint256 => address) public strategies;
@@ -722,6 +715,7 @@ contract StrategyFactory {
         uint256 amount,
         address strategyAddress
     );
+    event UpdatedMaxBetPercentage(uint256 _maxBetPercentage);
 
     constructor(address _predictionMarket) {
         require(
@@ -730,6 +724,20 @@ contract StrategyFactory {
         );
         predictionMarket = _predictionMarket;
         operator = payable(msg.sender);
+    }
+
+    function updateMaxBetPercentage(uint256 _maxBetPercentage) external {
+        require(
+            msg.sender == operator,
+            "StrategyFactory:updatePredictionMarket:: INVALID_SENDER"
+        );
+        require(
+            _maxBetPercentage > 0 && _maxBetPercentage < 1000000,
+            "Strategy::deposit: ZERO_FUNDS"
+        );
+
+        maxBetPercentage = _maxBetPercentage;
+        emit UpdatedMaxBetPercentage(_maxBetPercentage);
     }
 
     function updatePredictionMarket(address _predictionMarket) external {

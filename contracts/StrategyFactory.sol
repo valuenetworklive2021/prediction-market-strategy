@@ -7,6 +7,8 @@ contract StrategyFactory {
     address public predictionMarket;
     address payable public operator;
     uint256 public strategyID;
+    uint256 public maxBetPercentage = 200000;
+    uint256 public constant PERCENTAGE_MULTIPLIER = 10000;
 
     //strategyID -> strategy
     mapping(uint256 => address) public strategies;
@@ -20,6 +22,7 @@ contract StrategyFactory {
         uint256 amount,
         address strategyAddress
     );
+    event UpdatedMaxBetPercentage(uint256 _maxBetPercentage);
 
     constructor(address _predictionMarket) {
         require(
@@ -28,6 +31,20 @@ contract StrategyFactory {
         );
         predictionMarket = _predictionMarket;
         operator = payable(msg.sender);
+    }
+
+    function updateMaxBetPercentage(uint256 _maxBetPercentage) external {
+        require(
+            msg.sender == operator,
+            "StrategyFactory:updatePredictionMarket:: INVALID_SENDER"
+        );
+        require(
+            _maxBetPercentage > 0 && _maxBetPercentage < 1000000,
+            "Strategy::deposit: ZERO_FUNDS"
+        );
+
+        maxBetPercentage = _maxBetPercentage;
+        emit UpdatedMaxBetPercentage(_maxBetPercentage);
     }
 
     function updatePredictionMarket(address _predictionMarket) external {
