@@ -201,8 +201,8 @@ contract Strategy is StrategyStorage {
     {
         uint256 percentage = _getPercentage(_amount);
         require(
-            percentage < MAX_BET_PERCENTAGE,
-            "Strategy::placeBet:: AMOUNT_EXCEEDS_5_PERCENTAGE"
+            percentage < strategyFactory.maxBetPercentage(),
+            "Strategy::placeBet:: AMOUNT_EXCEEDS_MAX_BET_PERCENTAGE"
         );
         betAmount =
             (totalUserFunds * percentage) /

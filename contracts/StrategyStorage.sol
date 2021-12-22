@@ -11,7 +11,6 @@ contract StrategyStorage {
     IStrategyFactory public strategyFactory;
 
     uint256 internal constant PERCENTAGE_MULTIPLIER = 10000;
-    uint256 internal constant MAX_BET_PERCENTAGE = 50000;
 
     string public strategyName;
     address payable public trader;
